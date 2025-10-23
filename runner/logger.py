@@ -8,16 +8,22 @@ from typing import Any
 
 
 class CSVLogger:
-    def __init__(self, out_dir: str, filename: str = "log.csv"):
+    def __init__(self, out_dir: str, filename: str = "log.csv", fieldnames=None):
         self.path = os.path.join(out_dir, filename)
         self.file = open(self.path, "w", newline="", encoding="utf-8")
+        self.fieldnames = list(fieldnames) if fieldnames is not None else None
         self.writer = None
 
     def log(self, row: dict[str, Any]):
         if self.writer is None:
-            self.writer = csv.DictWriter(self.file, fieldnames=list(row.keys()))
+            # If no fieldnames provided, infer from the first row
+            if self.fieldnames is None:
+                self.fieldnames = list(row.keys())
+            self.writer = csv.DictWriter(self.file, fieldnames=self.fieldnames)
             self.writer.writeheader()
-        self.writer.writerow(row)
+        # Normalize: fill any missing columns with empty values
+        full_row = {k: row.get(k, "") for k in self.fieldnames}
+        self.writer.writerow(full_row)
         self.file.flush()
 
     def close(self):

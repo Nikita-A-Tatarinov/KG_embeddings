@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+import time
 from types import SimpleNamespace
 
 import torch
@@ -153,13 +154,52 @@ class Trainer:
         self.scheduler = build_scheduler(self.optimizer, cfg, total_steps)
 
         # 4) Logging
-        self.logger = CSVLogger(out_dir)
+        base_cols = ["step", "epoch", "loss", "lr", "time"]
+        med_cols = ["L_total", "L_ml", "L_ei"] if getattr(cfg.med, "enabled", False) else ["L_total"]
+        eval_cols = [f"val_{k}" for k in ["MR", "MRR", "H@1", "H@3", "H@10"]]
+        self.logger = CSVLogger(out_dir, fieldnames=base_cols + med_cols + eval_cols)
         self.timer = Timer()
 
         # 5) Book-keeping
         self.global_step = 0
         self.best_metric = -1.0
         self.best_tag = None
+        self.total_epochs = int(cfg.train.epochs)
+        self._last_log_time = time.time()
+
+    def _print_train_status(self, row: dict):
+        """
+        Pretty console line for training progress.
+        `row` contains step, epoch, loss, lr, time and optionally L_total/L_ml/L_ei.
+        """
+        step = row.get("step")
+        epoch = row.get("epoch")
+        loss = row.get("loss")
+        lr = row.get("lr")
+        elapsed = row.get("time")
+        # it/s since last print
+        now = time.time()
+        dt = max(1e-6, now - self._last_log_time)
+        self._last_log_time = now
+        it_per_s = 1.0 / dt
+
+        parts = [
+            f"[{epoch}/{self.total_epochs}]",
+            f"step {step}",
+            f"loss {loss:.4f}",
+        ]
+        if "L_total" in row:
+            parts.append(f"L_total {row['L_total']:.4f}")
+        if "L_ml" in row:
+            parts.append(f"L_ml {row['L_ml']:.4f}")
+        if "L_ei" in row:
+            parts.append(f"L_ei {row['L_ei']:.4f}")
+        parts += [
+            f"lr {lr:.6g}",
+            f"{it_per_s:.1f} it/s",
+            f"elapsed {elapsed:.1f}s",
+        ]
+        print(" | ".join(parts))
 
     def train(self):
         log_every = int(self.cfg.train.log_every)
@@ -194,6 +234,7 @@ class Trainer:
                     # train_step already does optimizer.step(), so undo zero_grad/step logic
                     # For consistent logging we reconstruct a loss number:
                     loss = torch.tensor(loss_stats["loss"], device=self.device)
+                    stats = {"L_total": float(loss.detach())}
 
                 if self.cfg.med.enabled:
                     if grad_clip > 0:
@@ -211,7 +252,10 @@ class Trainer:
                         "lr": self.optimizer.param_groups[0]["lr"],
                         "time": round(self.timer.elapsed(), 2),
                     }
+                    if isinstance(stats, dict):
+                        row.update(stats)  # fills L_total (and L_ml/L_ei for MED)
                     self.logger.log(row)
+                    self._print_train_status(row)
 
                 # ---- eval/save ----
                 if self.global_step % eval_every == 0:
@@ -220,6 +264,11 @@ class Trainer:
                     )
                     row = {"step": self.global_step, "epoch": epoch, **{f"val_{k}": v for k, v in metrics.items()}}
                     self.logger.log(row)
+                    print(
+                        f"[eval] step {self.global_step} | "
+                        f"MRR {metrics['MRR']:.4f} | MR {metrics['MR']:.1f} | "
+                        f"H@1 {metrics['H@1']:.4f} | H@3 {metrics['H@3']:.4f} | H@10 {metrics['H@10']:.4f}"
+                    )
 
                     # save "last"
                     save_checkpoint(
