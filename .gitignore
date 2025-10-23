@@ -1,15 +1,14 @@
-.venv #remove the link symbol
+.venv
 .venv/
 .vscode/
 
 data/
 
-uv.lock
 *.csv
 *.pth
 
 *.pyc
 __pycache__/
 
-workdir # symbolic link
+workdir
 workdir/
