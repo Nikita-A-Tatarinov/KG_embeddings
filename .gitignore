@@ -1,0 +1,10 @@
+.venv/
+.vscode/
+
+data/
+
+uv.lock
+*.csv
+*.pth
+
+workdir/
