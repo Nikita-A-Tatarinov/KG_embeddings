@@ -11,4 +11,5 @@ uv.lock
 *.pyc
 __pycache__/
 
+workdir # symbolic link
 workdir/
