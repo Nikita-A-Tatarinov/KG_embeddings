@@ -21,7 +21,7 @@ def prepare_wn18rr(
         use_hf = False
 
     if use_hf:
-        train, valid, test, ent2id, rel2id = load_kg_hf(hf_name or "KGraph/FB15k-237", revision=hf_revision)
+        train, valid, test, ent2id, rel2id = load_kg_hf(hf_name or "VLyb/WN18RR", revision=hf_revision)
     else:
         train, valid, test, ent2id, rel2id = load_kg(root, "WN18RR", prefer_ids=prefer_ids)
     nentity = len(ent2id) if ent2id else int(train[:, [0, 2]].max().item()) + 1

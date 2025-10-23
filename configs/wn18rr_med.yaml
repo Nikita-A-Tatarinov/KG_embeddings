@@ -4,7 +4,7 @@ device: auto
 dataset:
   name: WN18RR
   source: hf
-  hf_name: KGraph/WN18RR
+  hf_name: VLyb/WN18RR
   hf_revision: null
   filtered_eval: true
 
