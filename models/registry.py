@@ -1,4 +1,5 @@
 # models/registry.py
+from __future__ import annotations
 
 _REGISTRY: dict[str, type] = {}
 

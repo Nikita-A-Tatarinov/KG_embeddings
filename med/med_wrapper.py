@@ -105,7 +105,12 @@ class MEDTrainer(nn.Module):
 
         # --- Mutual Learning (neighbor Huber on logits) ---
         L_ml = 0.0
-        for a, b in zip(dims[:-1], dims[1:], strict=True):
+        # for a, b in zip(dims[:-1], dims[1:], strict=True):
+        #     L_ml = L_ml + self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
+        #     L_ml = L_ml + self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
+
+        for i in range(len(dims) - 1):
+            a, b = dims[i], dims[i + 1]
             L_ml = L_ml + self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
             L_ml = L_ml + self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
 
