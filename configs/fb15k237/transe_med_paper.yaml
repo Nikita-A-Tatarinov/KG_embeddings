@@ -38,11 +38,10 @@ sched:
   warmup_steps: 0
 
 train:
-  epochs: 3000
+  epochs: 100
   log_every: 100
   eval_every: 1000
   save_every: 2000
+  out_dir: ./workdir/runs/fb15k237/pairre_med_paper
   save_best_metric: MRR
 
-out:
-  dir: ./workdir/runs/fb15k237/transe_med_paper

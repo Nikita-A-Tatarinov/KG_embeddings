@@ -38,19 +38,9 @@ sched:
   warmup_steps: 0
 
 train:
-  epochs: 3000
+  epochs: 100
   log_every: 100
   eval_every: 1000
   save_every: 2000
+  out_dir: ./workdir/runs/fb15k237/pairre_med_paper
   save_best_metric: MRR
-
-eval:
-  med:
-    enable: true
-    dims: "10:640:10"   # or "10,20,40,80,160,320,640"
-    lp: 2
-    batch_size: 16384
-
-
-out:
-  dir: ./workdir/runs/wn18rr/transe_med_paper
