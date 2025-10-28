@@ -9,6 +9,7 @@ data/
 
 *.pyc
 __pycache__/
+.ruff_cache/
 
 workdir
 workdir/
