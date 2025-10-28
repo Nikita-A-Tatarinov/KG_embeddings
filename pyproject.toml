@@ -1,7 +1,7 @@
 [project]
 name = "kg-embeddings"
 version = "0.1.0"
-description = "Add your description here"
+description = "Dohyun Ku, Nikita Tatarinov, Yang Gu, Yuzhou Wang"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,8 +13,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
     "ruff>=0.14.1",
 ]
+
+[tool.setuptools]
+# We’re in a flat (non-src) layout; find only these real packages:
+packages = ["kg_embeddings", "med", "models", "dataset", "runner"]
 
 [tool.ruff]
 # Note: While the formatter will attempt to format lines such that they remain within the line-length,
@@ -23,8 +28,6 @@ line-length = 120
 exclude = ["tests/workers/rollout/test_sglang_async_rollout_sf_tools.py", "scripts/legacy_model_merger.py"]
 
 [tool.ruff.lint]
-isort = {known-first-party = ["verl"]}
-# c.f. https://github.com/vllm-project/vllm/blob/ce8d6b75fc0586045df75ee1568a5b5f9957251b/pyproject.toml
 select = [
     # pycodestyle
     "E",
