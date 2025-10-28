@@ -39,9 +39,10 @@ sched:
 
 train:
   epochs: 100
+  epochs: 100
   log_every: 100
   eval_every: 1000
   save_every: 2000
-  out_dir: ./workdir/runs/fb15k237/pairre_med_paper
+  out_dir: ./workdir/runs/win18rr/pairre_med_paper
   save_best_metric: MRR
 
