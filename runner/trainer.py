@@ -6,6 +6,7 @@ import time
 from types import SimpleNamespace
 
 import torch
+import torch.nn.functional as F
 
 from med.med_wrapper import MEDTrainer
 from models import create_model
@@ -231,19 +232,51 @@ class Trainer:
                     loss, stats = self.train_obj(pos, neg, mode=mode)
                     loss.backward()
                 else:
-                    # Use the OpenKE-compatible helper on the **underlying** model
-                    loss_stats = self.train_obj.train_step(
-                        self.train_obj,
-                        self.optimizer,
-                        iter([(pos, neg, w, mode)]),
-                        SimpleNamespace(
-                            cuda=True, negative_adversarial_sampling=False, uni_weight=True, regularization=0.0
-                        ),
-                    )
-                    # train_step already does optimizer.step(), so undo zero_grad/step logic
-                    # For consistent logging we reconstruct a loss number:
-                    loss = torch.tensor(loss_stats["loss"], device=self.device)
-                    stats = {"L_total": float(loss.detach())}
+                    # If MI is enabled we need to compute and incorporate the MI loss.
+                    if getattr(self.cfg.model, "use_mi", False) and hasattr(self.train_obj, "compute_mi_loss"):
+                        # manual OpenKE-like forward/backward so we can add MI loss
+                        self.train_obj.train() if hasattr(self.train_obj, "train") else None
+                        # positive score (single)
+                        positive_score = self.train_obj(pos)
+                        # negative score (batch)
+                        negative_score = self.train_obj((pos, neg), mode=mode)
+
+                        # compute OpenKE-style losses (simple version: BCE with logits)
+                        # positive
+                        pos_logits = positive_score.squeeze(1)
+                        pos_loss = -F.logsigmoid(pos_logits).mean()
+                        # negative
+                        neg_loss = -F.logsigmoid(-negative_score).mean()
+                        kge_loss = (pos_loss + neg_loss) / 2.0
+
+                        # MI loss (on positive triples)
+                        mi_lambda = float(getattr(self.cfg.model, "mi_lambda", 1.0))
+                        mi_loss = self.train_obj.compute_mi_loss(pos, neg_size=int(getattr(self.cfg.data, "neg_size", 64)))
+
+                        loss = kge_loss + mi_lambda * mi_loss
+                        stats = {"L_total": float(loss.detach())}
+
+                        # backward & step
+                        loss.backward()
+                        if grad_clip > 0:
+                            torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
+                        self.optimizer.step()
+                        if self.scheduler is not None:
+                            self.scheduler.step()
+                    else:
+                        # Use the OpenKE-compatible helper on the **underlying** model
+                        loss_stats = self.train_obj.train_step(
+                            self.train_obj,
+                            self.optimizer,
+                            iter([(pos, neg, w, mode)]),
+                            SimpleNamespace(
+                                cuda=True, negative_adversarial_sampling=False, uni_weight=True, regularization=0.0
+                            ),
+                        )
+                        # train_step already does optimizer.step(), so undo zero_grad/step logic
+                        # For consistent logging we reconstruct a loss number:
+                        loss = torch.tensor(loss_stats["loss"], device=self.device)
+                        stats = {"L_total": float(loss.detach())}
 
                 if self.cfg.med.enabled:
                     if grad_clip > 0:
