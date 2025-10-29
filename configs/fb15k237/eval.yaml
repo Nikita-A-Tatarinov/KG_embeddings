@@ -1,0 +1,32 @@
+# Example eval config (reuse your training config style)
+dataset:
+  # Mode 'hf' (Hugging Face datasets) or 'txt'
+  mode: hf
+  hf_name: lmkg/fb15k237
+  hf_train_split: train
+  hf_valid_split: validation
+  hf_test_split: test
+  columns: {head: head, relation: relation, tail: tail}
+  already_ids: false
+
+model:
+  name: rotate              # transe | rotate | pairre
+  # Optional explicit tensor keys (only if auto-detect fails)
+  keys:
+    entity: entity_embedding.weight
+    relation: relation_embedding.weight
+    # relation_head: relation_head.weight   # PairRE only
+    # relation_tail: relation_tail.weight   # PairRE only
+
+training:
+  workdir: ./workdir/runs/fb15k237_rotate_med
+  # checkpoint: best.ckpt                    # optional; if omitted, auto-discovers best/newest
+  ckpt_glob: ["**/*.ckpt","**/*.pt","**/*.pth"]
+
+eval:
+  med:
+    dims: "10:640:10"
+    lp: 2
+    batch_size: 16384
+    device: cuda
+    save_csv: eval/med_fb15k237_rotate.csv

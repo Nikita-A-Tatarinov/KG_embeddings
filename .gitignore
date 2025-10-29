@@ -1,0 +1,15 @@
+.venv
+.venv/
+.vscode/
+
+data/
+
+*.csv
+*.pth
+
+*.pyc
+__pycache__/
+.ruff_cache/
+
+workdir
+workdir/

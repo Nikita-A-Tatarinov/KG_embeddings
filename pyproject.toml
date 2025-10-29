@@ -1,0 +1,83 @@
+[project]
+name = "kg-embeddings"
+version = "0.1.0"
+description = "Dohyun Ku, Nikita Tatarinov, Yang Gu, Yuzhou Wang"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=4.3.0",
+    "matplotlib>=3.10.7",
+    "pyyaml>=6.0.3",
+    "torch>=2.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.1",
+]
+
+[tool.setuptools]
+# We’re in a flat (non-src) layout; find only these real packages:
+packages = ["kg_embeddings", "med", "models", "dataset", "runner"]
+
+[tool.ruff]
+# Note: While the formatter will attempt to format lines such that they remain within the line-length,
+# it isn't a hard upper bound, and formatted lines may exceed the line-length.
+line-length = 120
+exclude = ["tests/workers/rollout/test_sglang_async_rollout_sf_tools.py", "scripts/legacy_model_merger.py"]
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # isort
+    "I",
+    "G",
+]
+ignore = [
+    # star imports
+    "F405", "F403",
+    # lambda expression assignment
+    "E731",
+    # Loop control variable not used within loop body
+    "B007",
+    # f-string format
+    "UP032",
+    # `.log()` statement uses f-string
+    "G004",
+    # X | None for type annotations
+    "UP045",
+    # deprecated import
+    "UP035",
+    # raise error
+    "B904",
+]
+
+# -------------------------------
+# tool.mypy - typechecking config
+# -------------------------------
+[tool.mypy]
+pretty            = true
+ignore_missing_imports = true
+explicit_package_bases = true
+follow_imports = "skip"
+
+# Blanket silence
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+"verl.trainer.config.algorithm",
+"verl.trainer.ppo.core_algos",
+"verl.trainer.ppo.reward",
+"verl.workers.reward_manager",
+"verl.workers.reward_manager.*",
+]
+ignore_errors = false
