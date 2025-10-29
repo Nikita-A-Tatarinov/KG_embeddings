@@ -141,6 +141,15 @@ class Trainer:
             **{k: v for k, v in vars(cfg.model).items() if k not in ("name", "base_dim", "gamma")},
         ).to(self.device)
 
+        # Optionally attach RSCF as a plug-in filter module
+        if getattr(cfg.model, "use_rscf", False):
+            try:
+                from models.rscf_wrapper import attach_rscf
+
+                attach_rscf(model, use_et=getattr(cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
+            except Exception as exc:  # pragma: no cover - best-effort
+                print(f"Warning: failed to attach RSCF: {exc}")
+
         if cfg.med.enabled:
             self.train_obj = MEDTrainer(model, d_list=cfg.med.dims, submodels_per_step=cfg.med.submodels_per_step).to(
                 self.device
