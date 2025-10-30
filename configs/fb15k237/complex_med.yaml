@@ -1,0 +1,44 @@
+seed: 42
+device: auto
+
+dataset:
+  name: FB15k-237
+  source: hf
+  hf_name: KGraph/FB15k-237
+  filtered_eval: true
+
+data:
+  neg_size: 64
+  train_bs: 1024
+  test_bs: 128
+  num_workers: 4
+
+model:
+  name: ComplEx
+  base_dim: 80
+  gamma: 12.0
+
+med:
+  enabled: true
+  dims: [10, 20, 40, 80]
+  submodels_per_step: 3
+
+optim:
+  name: Adam
+  lr: 0.0005
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  grad_clip: 1.0
+
+sched:
+  name: linear
+  warmup_steps: 1000
+  total_steps: 0
+
+train:
+  epochs: 100
+  log_every: 100
+  eval_every: 2000
+  save_every: 2000
+  out_dir: ./workdir/runs/fb15k237/complex/med_dims_10_20_40_80
+  save_best_metric: MRR
