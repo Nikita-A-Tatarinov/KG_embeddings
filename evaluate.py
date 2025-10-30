@@ -147,21 +147,17 @@ def main():
         all_metrics = {}
         for dim in med_d_list:
             print(f"=== Evaluating dimension {dim} ===")
-            # Temporarily crop the model to this dimension
-            original_dim = model.base_dim
-            model.base_dim = dim
+            # Note: KGModel uses max_base_dim internally, and crops via forward(crop_dim=d)
+            # We don't need to modify the model, just call forward with crop_dim parameter
 
             metrics_dim = evaluate_model(
-                model, dl_head, dl_tail, device=device)
+                model, dl_head, dl_tail, device=device, crop_dim=dim)
             all_metrics[f"dim_{dim}"] = metrics_dim
 
             print(f"Results for dim={dim}:")
             for k, v in metrics_dim.items():
                 print(f"  {k}: {v}")
             print()
-
-            # Restore original dimension
-            model.base_dim = original_dim
 
         # Save per-dimension metrics
         if args.out:

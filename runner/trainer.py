@@ -186,6 +186,7 @@ class Trainer:
                 "use_rscf",
                 "rscf_et",
                 "rscf_rt",
+                "rscf_alpha",
                 "use_mi",
                 "mi_lambda",
                 "mi_q_dim",

@@ -7,27 +7,30 @@ import torch
 import torch.nn.functional as F
 
 
-def _score_batch(model, pos_batch: torch.LongTensor, cand_batch: torch.LongTensor, mode: str, device=None):
+def _score_batch(model, pos_batch: torch.LongTensor, cand_batch: torch.LongTensor, mode: str, device=None, crop_dim=None):
     """Call model in the right mode to get scores for candidates.
 
     pos_batch: (B,3)
     cand_batch: (B, nentity) with gold at col 0
+    crop_dim: optional dimension to crop embeddings (for MED evaluation)
     Returns: scores tensor (B, nentity)
     """
     # Model expects (pos, candidates) sample for head/tail-batch
     sample = (pos_batch.to(device), cand_batch.to(device))
     # model.forward will return logits shaped (B, nentity, 1) or (B, nentity)
     with torch.no_grad():
-        scores = model(sample, mode=mode)  # expected shape (B, nentity)
+        # expected shape (B, nentity)
+        scores = model(sample, mode=mode, crop_dim=crop_dim)
     # ensure 2D
     if scores.dim() == 3 and scores.size(2) == 1:
         scores = scores.squeeze(2)
     return scores
 
 
-def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10)) -> dict:
+def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10), crop_dim=None) -> dict:
     """Compute filtered MRR and Hits@k over head and tail loaders.
 
+    crop_dim: optional dimension to crop embeddings (for MED evaluation)
     Returns a dict with keys: mrr, hits@1, hits@3, hits@10, and breakdown for head/tail.
     """
     model.eval()
@@ -40,7 +43,8 @@ def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10)) -> 
         for pos, cands, _mode in dl:
             pos = pos.to(device)
             cands = cands.to(device)
-            scores = _score_batch(model, pos, cands, mode, device=device)
+            scores = _score_batch(model, pos, cands, mode,
+                                  device=device, crop_dim=crop_dim)
             # gold is at col 0
             # compute rank: higher score = better
             # rank = 1 + (number of scores > gold_score) + 0.5 * (number of scores == gold_score, excluding gold itself)
