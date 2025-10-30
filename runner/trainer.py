@@ -262,6 +262,23 @@ class Trainer:
         self.total_epochs = int(cfg.train.epochs)
         self._last_log_time = time.time()
 
+        # 6) Build model config for checkpoints (enables proper evaluation)
+        self.model_config = {
+            "model_name": cfg.model.name,
+            "base_dim": cfg.model.base_dim,
+            "nentity": self.nentity,
+            "nrelation": self.nrelation,
+            "gamma": cfg.model.gamma,
+        }
+
+        # Add MED-specific config if applicable
+        if cfg.med.enabled:
+            self.model_config["med_enabled"] = True
+            # Convert to list for JSON serialization
+            self.model_config["d_list"] = list(cfg.med.dims)
+        else:
+            self.model_config["med_enabled"] = False
+
     def _print_train_status(self, row: dict):
         """
         Pretty console line for training progress.
@@ -420,6 +437,7 @@ class Trainer:
                         self.train_obj,
                         self.optimizer,
                         self.scheduler,
+                        model_config=self.model_config,
                     )
 
                     # save best
@@ -436,6 +454,7 @@ class Trainer:
                             self.train_obj,
                             self.optimizer,
                             self.scheduler,
+                            model_config=self.model_config,
                         )
 
                 if self.global_step % save_every == 0:
@@ -446,6 +465,7 @@ class Trainer:
                         self.train_obj,
                         self.optimizer,
                         self.scheduler,
+                        model_config=self.model_config,
                     )
 
             # end epoch

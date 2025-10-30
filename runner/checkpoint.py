@@ -14,7 +14,15 @@ def save_checkpoint(
     model_obj,
     optimizer,
     scheduler=None,
+    model_config: dict[str, Any] = None,
 ):
+    """Save checkpoint with optional model configuration.
+
+    Args:
+        model_config: Dict with keys like 'model_name', 'base_dim', 'nentity', 
+                      'nrelation', 'gamma', 'med_enabled', 'd_list', etc.
+                      This enables proper model reconstruction during evaluation.
+    """
     path = os.path.join(out_dir, f"ckpt_{tag}.pt")
     payload = {
         "trainer": trainer_state,
@@ -22,6 +30,11 @@ def save_checkpoint(
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
         "scheduler": scheduler.state_dict() if scheduler is not None else None,
     }
+
+    # Add model configuration if provided
+    if model_config is not None:
+        payload["model_config"] = model_config
+
     torch.save(payload, path)
     return path
 

@@ -71,32 +71,55 @@ def main():
     print(f"Loading checkpoint: {args.ckpt}")
     ckpt_data = torch.load(args.ckpt, map_location="cpu")
 
-    # Infer base_dim from checkpoint
-    if "model" in ckpt_data:
-        state = ckpt_data["model"]
-        # entity_embedding shape is (nentity, ENTITY_FACTOR * base_dim)
-        # For most models ENTITY_FACTOR=1, but ComplEx has ENTITY_FACTOR=2
-        if "entity_embedding" in state:
-            emb_dim = state["entity_embedding"].shape[1]
-            # Try to infer base_dim (assume ENTITY_FACTOR=1 for RotatE, TransE, etc.)
-            # For RotatE: entity_embedding is (nentity, base_dim)
-            # For ComplEx: entity_embedding is (nentity, 2*base_dim)
-            # We'll use a simple heuristic: check if model name suggests ComplEx
-            if args.model.lower() == "complex":
-                base_dim = emb_dim // 2
-            else:
-                base_dim = emb_dim
-            print(f"Inferred base_dim from checkpoint: {base_dim}")
-        else:
-            print("Warning: Could not infer base_dim from checkpoint, using default=100")
-            base_dim = 100
+    # Try to read model_config from checkpoint (new format)
+    model_config = ckpt_data.get("model_config", None)
+
+    if model_config:
+        print("Found model_config in checkpoint:")
+        print(f"  Model: {model_config['model_name']}")
+        print(f"  Base dim: {model_config['base_dim']}")
+        print(f"  Entities: {model_config['nentity']}")
+        print(f"  Relations: {model_config['nrelation']}")
+        print(f"  Gamma: {model_config['gamma']}")
+        if model_config.get('med_enabled', False):
+            print(
+                f"  MED enabled with dimensions: {model_config.get('d_list', [])}")
+        base_dim = model_config['base_dim']
+        gamma = model_config['gamma']
+        med_d_list = model_config.get('d_list', None) if model_config.get(
+            'med_enabled', False) else None
     else:
-        print("Warning: Could not read checkpoint model state, using default base_dim=100")
-        base_dim = 100
+        # Fallback: infer base_dim from checkpoint state_dict (old format)
+        print("Warning: model_config not found in checkpoint (old format). Attempting to infer parameters...")
+        if "model" in ckpt_data:
+            state = ckpt_data["model"]
+            # entity_embedding shape is (nentity, ENTITY_FACTOR * base_dim)
+            # For most models ENTITY_FACTOR=1, but ComplEx has ENTITY_FACTOR=2
+            if "entity_embedding" in state:
+                emb_dim = state["entity_embedding"].shape[1]
+                # Try to infer base_dim (assume ENTITY_FACTOR=1 for RotatE, TransE, etc.)
+                # For RotatE: entity_embedding is (nentity, base_dim)
+                # For ComplEx: entity_embedding is (nentity, 2*base_dim)
+                # We'll use a simple heuristic: check if model name suggests ComplEx
+                if args.model.lower() == "complex":
+                    base_dim = emb_dim // 2
+                else:
+                    base_dim = emb_dim
+                print(f"Inferred base_dim from checkpoint: {base_dim}")
+            else:
+                print(
+                    "Warning: Could not infer base_dim from checkpoint, using default=100")
+                base_dim = 100
+        else:
+            print(
+                "Warning: Could not read checkpoint model state, using default base_dim=100")
+            base_dim = 100
+        gamma = 12.0  # Default gamma
+        med_d_list = None  # Cannot infer MED settings from old checkpoints
 
     # Create model with correct sizes
     model = create_model(args.model, nentity=nentity,
-                         nrelation=nrelation, base_dim=base_dim, gamma=12.0)
+                         nrelation=nrelation, base_dim=base_dim, gamma=gamma)
     # load checkpoint
     load_checkpoint(args.ckpt, model)
 
@@ -113,23 +136,23 @@ def main():
     dl_head, dl_tail = build_test_loaders(
         test_ids, nentity, batch_size=args.batch_size, filtered=args.filtered, all_true=all_true)
 
-    # Check if model is MED-wrapped (has d_list attribute from MEDTrainer)
-    is_med = hasattr(model, 'd_list') and hasattr(model, 'model')
+    # Check if model is MED-wrapped or if we have MED config from checkpoint
+    is_med = med_d_list is not None
 
     if is_med:
         # MED model: evaluate each dimension separately
-        print(f"MED model detected with dimensions: {model.d_list}")
+        print(f"MED model detected with dimensions: {med_d_list}")
         print(f"Evaluating each dimension separately...\n")
 
         all_metrics = {}
-        for dim in model.d_list:
+        for dim in med_d_list:
             print(f"=== Evaluating dimension {dim} ===")
-            # Temporarily crop the base model to this dimension
-            original_dim = model.model.base_dim
-            model.model.base_dim = dim
+            # Temporarily crop the model to this dimension
+            original_dim = model.base_dim
+            model.base_dim = dim
 
             metrics_dim = evaluate_model(
-                model.model, dl_head, dl_tail, device=device)
+                model, dl_head, dl_tail, device=device)
             all_metrics[f"dim_{dim}"] = metrics_dim
 
             print(f"Results for dim={dim}:")
@@ -138,7 +161,7 @@ def main():
             print()
 
             # Restore original dimension
-            model.model.base_dim = original_dim
+            model.base_dim = original_dim
 
         # Save per-dimension metrics
         if args.out:
