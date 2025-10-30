@@ -127,19 +127,39 @@ class Trainer:
         set_seed(cfg.seed)
 
         # 1) Data
-        self.train_iter, self.valid_loaders, self.test_loaders, meta = build_data(cfg)
+        self.train_iter, self.valid_loaders, self.test_loaders, meta = build_data(
+            cfg)
         self.nentity, self.nrelation = meta["nentity"], meta["nrelation"]
         # steps/epoch = head_batches + tail_batches
-        self.steps_per_epoch = len(self.train_iter._src_head) + len(self.train_iter._src_tail)
+        self.steps_per_epoch = len(
+            self.train_iter._src_head) + len(self.train_iter._src_tail)
 
         # 2) Model (or MED)
+        # Avoid passing plugin-specific flags (use_rscf/use_mi/mi_*) into model ctor
+        model_ctor_kwargs = {
+            k: v
+            for k, v in vars(cfg.model).items()
+            if k not in (
+                "name",
+                "base_dim",
+                "gamma",
+                "use_rscf",
+                "rscf_et",
+                "rscf_rt",
+                "use_mi",
+                "mi_lambda",
+                "mi_q_dim",
+                "mi_use_info_nce",
+                "mi_use_jsd",
+            )
+        }
         model = create_model(
             cfg.model.name,
             nentity=self.nentity,
             nrelation=self.nrelation,
             base_dim=cfg.model.base_dim,
             gamma=cfg.model.gamma,
-            **{k: v for k, v in vars(cfg.model).items() if k not in ("name", "base_dim", "gamma")},
+            **model_ctor_kwargs,
         ).to(self.device)
 
         # Optionally attach RSCF as a plug-in filter module
@@ -147,27 +167,52 @@ class Trainer:
             try:
                 from models.rscf_wrapper import attach_rscf
 
-                attach_rscf(model, use_et=getattr(cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
+                attach_rscf(model, use_et=getattr(
+                    cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
             except Exception as exc:  # pragma: no cover - best-effort
                 print(f"Warning: failed to attach RSCF: {exc}")
 
+        # Optionally attach MI module if requested
+        if getattr(cfg.model, "use_mi", False):
+            try:
+                from models.mi_wrapper import attach_mi
+
+                # allow passing some mi options via cfg.model
+                mi_q_dim = getattr(cfg.model, "mi_q_dim", None)
+                mi_use_info_nce = bool(
+                    getattr(cfg.model, "mi_use_info_nce", True))
+                mi_use_jsd = bool(getattr(cfg.model, "mi_use_jsd", False))
+                attach_mi(model, q_dim=mi_q_dim,
+                          use_info_nce=mi_use_info_nce, use_jsd=mi_use_jsd)
+            except Exception as exc:  # pragma: no cover - best-effort
+                print(f"Warning: failed to attach MI module: {exc}")
+
         if cfg.med.enabled:
-            self.train_obj = MEDTrainer(model, d_list=cfg.med.dims, submodels_per_step=cfg.med.submodels_per_step).to(
-                self.device
-            )
+            # pass MI-related kwargs to MEDTrainer via cfg.med if present (e.g., mi_lambda)
+            med_kwargs = {}
+            # carry over mi_lambda if set at config.model.mi_lambda
+            med_kwargs["mi_lambda"] = float(
+                getattr(cfg.model, "mi_lambda", 0.0))
+            med_kwargs["mi_neg_size"] = int(getattr(cfg.data, "neg_size", 64))
+            self.train_obj = MEDTrainer(
+                model, d_list=cfg.med.dims, submodels_per_step=cfg.med.submodels_per_step, **med_kwargs
+            ).to(self.device)
         else:
             self.train_obj = model  # plain
 
         # 3) Optimizer & Scheduler
         self.optimizer = build_optimizer(self.train_obj.parameters(), cfg)
-        total_steps = cfg.sched.total_steps or (cfg.train.epochs * self.steps_per_epoch)
+        total_steps = cfg.sched.total_steps or (
+            cfg.train.epochs * self.steps_per_epoch)
         self.scheduler = build_scheduler(self.optimizer, cfg, total_steps)
 
         # 4) Logging
         base_cols = ["step", "epoch", "loss", "lr", "time"]
-        med_cols = ["L_total", "L_ml", "L_ei"] if getattr(cfg.med, "enabled", False) else ["L_total"]
+        med_cols = ["L_total", "L_ml", "L_ei"] if getattr(
+            cfg.med, "enabled", False) else ["L_total"]
         eval_cols = [f"val_{k}" for k in ["MR", "MRR", "H@1", "H@3", "H@10"]]
-        self.logger = CSVLogger(out_dir, fieldnames=base_cols + med_cols + eval_cols)
+        self.logger = CSVLogger(
+            out_dir, fieldnames=base_cols + med_cols + eval_cols)
         self.timer = Timer()
 
         # 5) Book-keeping
@@ -250,8 +295,10 @@ class Trainer:
                         kge_loss = (pos_loss + neg_loss) / 2.0
 
                         # MI loss (on positive triples)
-                        mi_lambda = float(getattr(self.cfg.model, "mi_lambda", 1.0))
-                        mi_loss = self.train_obj.compute_mi_loss(pos, neg_size=int(getattr(self.cfg.data, "neg_size", 64)))
+                        mi_lambda = float(
+                            getattr(self.cfg.model, "mi_lambda", 1.0))
+                        mi_loss = self.train_obj.compute_mi_loss(
+                            pos, neg_size=int(getattr(self.cfg.data, "neg_size", 64)))
 
                         loss = kge_loss + mi_lambda * mi_loss
                         stats = {"L_total": float(loss.detach())}
@@ -259,28 +306,37 @@ class Trainer:
                         # backward & step
                         loss.backward()
                         if grad_clip > 0:
-                            torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
+                            torch.nn.utils.clip_grad_norm_(
+                                self.train_obj.parameters(), grad_clip)
                         self.optimizer.step()
                         if self.scheduler is not None:
                             self.scheduler.step()
                     else:
                         # Use the OpenKE-compatible helper on the **underlying** model
+                        # OpenKE-style train_step: pass a cuda flag that reflects actual device
+                        cuda_flag = True if (isinstance(
+                            self.device, str) and self.device.startswith("cuda")) else False
                         loss_stats = self.train_obj.train_step(
                             self.train_obj,
                             self.optimizer,
                             iter([(pos, neg, w, mode)]),
                             SimpleNamespace(
-                                cuda=True, negative_adversarial_sampling=False, uni_weight=True, regularization=0.0
+                                cuda=cuda_flag,
+                                negative_adversarial_sampling=False,
+                                uni_weight=True,
+                                regularization=0.0,
                             ),
                         )
                         # train_step already does optimizer.step(), so undo zero_grad/step logic
                         # For consistent logging we reconstruct a loss number:
-                        loss = torch.tensor(loss_stats["loss"], device=self.device)
+                        loss = torch.tensor(
+                            loss_stats["loss"], device=self.device)
                         stats = {"L_total": float(loss.detach())}
 
                 if self.cfg.med.enabled:
                     if grad_clip > 0:
-                        torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
+                        torch.nn.utils.clip_grad_norm_(
+                            self.train_obj.parameters(), grad_clip)
                     self.optimizer.step()
                     if self.scheduler is not None:
                         self.scheduler.step()
@@ -295,16 +351,19 @@ class Trainer:
                         "time": round(self.timer.elapsed(), 2),
                     }
                     if isinstance(stats, dict):
-                        row.update(stats)  # fills L_total (and L_ml/L_ei for MED)
+                        # fills L_total (and L_ml/L_ei for MED)
+                        row.update(stats)
                     self.logger.log(row)
                     self._print_train_status(row)
 
                 # ---- eval/save ----
                 if self.global_step % eval_every == 0:
                     metrics = evaluate(
-                        self.train_obj.model if hasattr(self.train_obj, "model") else self.train_obj, self.valid_loaders
+                        self.train_obj.model if hasattr(
+                            self.train_obj, "model") else self.train_obj, self.valid_loaders
                     )
-                    row = {"step": self.global_step, "epoch": epoch, **{f"val_{k}": v for k, v in metrics.items()}}
+                    row = {"step": self.global_step, "epoch": epoch,
+                           **{f"val_{k}": v for k, v in metrics.items()}}
                     self.logger.log(row)
                     print(
                         f"[eval] step {self.global_step} | "
@@ -316,7 +375,8 @@ class Trainer:
                     save_checkpoint(
                         self.out_dir,
                         "last",
-                        {"step": self.global_step, "epoch": epoch, "metrics": metrics},
+                        {"step": self.global_step,
+                            "epoch": epoch, "metrics": metrics},
                         self.train_obj,
                         self.optimizer,
                         self.scheduler,
@@ -331,7 +391,8 @@ class Trainer:
                         save_checkpoint(
                             self.out_dir,
                             self.best_tag,
-                            {"step": self.global_step, "epoch": epoch, "metrics": metrics},
+                            {"step": self.global_step,
+                                "epoch": epoch, "metrics": metrics},
                             self.train_obj,
                             self.optimizer,
                             self.scheduler,
@@ -349,10 +410,14 @@ class Trainer:
 
             # end epoch
 
-        # final eval on test
-        test_metrics = evaluate(
-            self.train_obj.model if hasattr(self.train_obj, "model") else self.train_obj, self.test_loaders
-        )
-        self.logger.log({f"test_{k}": v for k, v in test_metrics.items()})
-        print("Test:", {k: round(v, 4) for k, v in test_metrics.items()})
+        # final eval on test (skip if requested, useful for quick smoke runs)
+        if not bool(getattr(self.cfg.train, "skip_final_eval", False)):
+            test_metrics = evaluate(
+                self.train_obj.model if hasattr(
+                    self.train_obj, "model") else self.train_obj, self.test_loaders
+            )
+            self.logger.log({f"test_{k}": v for k, v in test_metrics.items()})
+            print("Test:", {k: round(v, 4) for k, v in test_metrics.items()})
+        else:
+            print("Skipping final test evaluation (skip_final_eval=True)")
         self.logger.close()

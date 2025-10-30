@@ -28,6 +28,8 @@ class MEDTrainer(nn.Module):
         w1: float = 1.0,  # pos-weight scale
         w2: float = 1.0,  # neg-weight scale
         w3: float = 1.0,  # DLW scale
+        mi_lambda: float = 0.0,
+        mi_neg_size: int = 32,
     ):
         super().__init__()
         self.model = model
@@ -56,6 +58,10 @@ class MEDTrainer(nn.Module):
         self.w1 = nn.Parameter(torch.tensor(float(w1)))
         self.w2 = nn.Parameter(torch.tensor(float(w2)))
         self.w3 = nn.Parameter(torch.tensor(float(w3)))
+
+        # MI hyperparams (if MI module attached to model)
+        self.mi_lambda = float(mi_lambda)
+        self.mi_neg_size = int(mi_neg_size)
 
     # ----- utils -----
     @staticmethod
@@ -97,17 +103,21 @@ class MEDTrainer(nn.Module):
         s_neg = {}  # d -> (B*K,)
         for d in dims:
             # positive logits (single mode)
-            s_p = self.model(pos_triples, mode="single", crop_dim=d).squeeze(1)  # (B,)
+            s_p = self.model(pos_triples, mode="single",
+                             crop_dim=d).squeeze(1)  # (B,)
             # negative logits (batch mode)
-            s_n = self.model((pos_triples, neg_candidates), mode=mode, crop_dim=d)  # (B,K)
+            s_n = self.model((pos_triples, neg_candidates),
+                             mode=mode, crop_dim=d)  # (B,K)
             s_pos[d] = s_p
             s_neg[d] = s_n.reshape(B * K)
 
         # --- Mutual Learning (neighbor Huber on logits) ---
         L_ml = 0.0
         for a, b in zip(dims[:-1], dims[1:], strict=True):
-            L_ml = L_ml + self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
-            L_ml = L_ml + self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
+            L_ml = L_ml + \
+                self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
+            L_ml = L_ml + \
+                self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
 
         # --- Evolutionary Improvement (weighted BCE) ---
         L_ei = 0.0
@@ -118,16 +128,21 @@ class MEDTrainer(nn.Module):
             if k == 0:
                 # uniform weights
                 w_pos = torch.full((B,), 1.0 / B, device=device, dtype=dtype)
-                w_neg = torch.full((B * K,), 1.0 / (B * K), device=device, dtype=dtype)
+                w_neg = torch.full((B * K,), 1.0 / (B * K),
+                                   device=device, dtype=dtype)
             else:
                 prev = dims[k - 1]
                 # IMPORTANT: stop grad to previous sub-model logits, but keep w1/w2 learnable
-                w_pos = F.softmax(-self.w1 * s_pos[prev].detach(), dim=0)  # harder positives ↑
-                w_neg = F.softmax(+self.w2 * s_neg[prev].detach(), dim=0)  # harder negatives ↑
+                # harder positives ↑
+                w_pos = F.softmax(-self.w1 * s_pos[prev].detach(), dim=0)
+                # harder negatives ↑
+                w_neg = F.softmax(+self.w2 * s_neg[prev].detach(), dim=0)
 
             # Per-example BCE (no 'weight=' arg) so we can multiply by our soft weights
-            bce_pos = F.binary_cross_entropy_with_logits(s_pos[d], ones_pos, reduction="none")  # (B,)
-            bce_neg = F.binary_cross_entropy_with_logits(s_neg[d], zeros_neg, reduction="none")  # (B*K,)
+            bce_pos = F.binary_cross_entropy_with_logits(
+                s_pos[d], ones_pos, reduction="none")  # (B,)
+            bce_neg = F.binary_cross_entropy_with_logits(
+                s_neg[d], zeros_neg, reduction="none")  # (B*K,)
 
             # Weighted means (normalize by sum of weights)
             L_pos = (w_pos * bce_pos).sum() / (w_pos.sum() + 1e-12)
@@ -135,14 +150,33 @@ class MEDTrainer(nn.Module):
 
             # Dynamic Loss Weight
             d_ratio = d / float(self.d_max)
-            alpha = torch.sigmoid(self.w3 * torch.tensor(d_ratio - 0.5, device=device, dtype=dtype))
+            alpha = torch.sigmoid(
+                self.w3 * torch.tensor(d_ratio - 0.5, device=device, dtype=dtype))
             L_ei = L_ei + alpha * (L_pos + L_neg)
 
         loss = L_ei + L_ml
+        # Optionally add MI loss computed on positive triples (if model provides compute_mi_loss)
+        mi_loss_val = None
+        if self.mi_lambda and hasattr(self.model, "compute_mi_loss"):
+            try:
+                # pos_triples is (B,3) LongTensor
+                mi_loss = self.model.compute_mi_loss(
+                    pos_triples, neg_size=self.mi_neg_size)
+                # ensure scalar
+                if torch.is_tensor(mi_loss):
+                    mi_loss_val = float(mi_loss.detach())
+                    loss = loss + self.mi_lambda * mi_loss
+            except Exception:
+                mi_loss_val = None
+
         stats = {
             "L_total": float(loss.detach()),
             "L_ml": float(L_ml.detach()),
             "L_ei": float(L_ei.detach()),
             "dims": dims,
         }
+
+        if mi_loss_val is not None:
+            stats["L_mi"] = mi_loss_val
+
         return loss, stats

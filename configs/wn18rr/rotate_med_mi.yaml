@@ -1,11 +1,10 @@
-seed: 0
+seed: 42
 device: auto
 
 dataset:
-  name: FB15k-237
-  source: hf                # "hf" uses 🤗 Datasets
-  hf_name: KGraph/FB15k-237
-  hf_revision: null
+  name: WN18RR
+  source: hf
+  hf_name: VLyb/WN18RR
   filtered_eval: true
 
 data:
@@ -16,13 +15,15 @@ data:
 
 model:
   name: RotatE
-  base_dim: 512            # max croppable base-d
+  base_dim: 160
   gamma: 12.0
+  use_mi: true
+  mi_lambda: 1.0
 
 med:
   enabled: true
-  dims: [128, 256, 512]    # sub-model dims (front-sliced)
-  submodels_per_step: 3    # sample neighbor set each step
+  dims: [20, 40, 80, 160]
+  submodels_per_step: 3
 
 optim:
   name: Adam
@@ -34,12 +35,12 @@ optim:
 sched:
   name: linear
   warmup_steps: 1000
-  total_steps: 0           # 0 => epochs * steps_per_epoch
+  total_steps: 0
 
 train:
   epochs: 100
   log_every: 100
   eval_every: 2000
   save_every: 2000
-  out_dir: ./workdir/runs/fb15k237/med_rotatE
+  out_dir: ./workdir/runs/wn18rr/rotate/med_mi_dims_20_40_80_160
   save_best_metric: MRR

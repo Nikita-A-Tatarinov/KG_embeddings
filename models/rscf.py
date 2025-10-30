@@ -51,7 +51,11 @@ class RSCFModule(nn.Module):
         returns e_r: (..., e_dim)
         """
         # compute change = r @ A1 -> (..., e_dim)
-        change = torch.matmul(r, self.A1)
+        # Support cropped embeddings: slice A1 to match current r/e trailing dims
+        r_cur = r.size(-1)
+        e_cur = e.size(-1)
+        A1 = self.A1[:r_cur, :e_cur]
+        change = torch.matmul(r, A1)
         change_n = self._normalize(change)
         # rooted transform: (change_n + 1) ⊗ e
         return (change_n + 1.0) * e
@@ -61,8 +65,13 @@ class RSCFModule(nn.Module):
         h: (..., e_dim), t: (..., e_dim), r: (..., r_dim)
         returns r_ht: (..., r_dim)
         """
-        h_feat = torch.matmul(h, self.A2)
-        t_feat = torch.matmul(t, self.A3)
+        # Support cropped embeddings: slice A2/A3 to match current dims
+        e_cur = h.size(-1)
+        r_cur = r.size(-1)
+        A2 = self.A2[:e_cur, :r_cur]
+        A3 = self.A3[:e_cur, :r_cur]
+        h_feat = torch.matmul(h, A2)
+        t_feat = torch.matmul(t, A3)
         h_n = self._normalize(h_feat)
         t_n = self._normalize(t_feat)
         return (h_n + 1.0) * (t_n + 1.0) * r
@@ -82,4 +91,3 @@ class RSCFModule(nn.Module):
         if apply_rt:
             r_ht = self.transform_relation(head, tail, relation)
         return h_r, r_ht, t_r
-
