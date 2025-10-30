@@ -4,7 +4,7 @@ device: auto
 dataset:
   name: WN18RR
   source: hf
-  hf_name: KGraph/WN18RR
+  hf_name: KGraph/wn18rr
   filtered_eval: true
 
 data:
@@ -33,7 +33,7 @@ model:
   name: DistMult
   base_dim: 80
   gamma: 12.0
-  rscf_enabled: true
+  use_rscf: true
   rscf_alpha: 0.1
 
 med:

@@ -113,21 +113,61 @@ def main():
     dl_head, dl_tail = build_test_loaders(
         test_ids, nentity, batch_size=args.batch_size, filtered=args.filtered, all_true=all_true)
 
-    metrics = evaluate_model(model, dl_head, dl_tail, device=device)
-    print("Evaluation results:")
-    for k, v in metrics.items():
-        print(f"{k}: {v}")
+    # Check if model is MED-wrapped (has d_list attribute from MEDTrainer)
+    is_med = hasattr(model, 'd_list') and hasattr(model, 'model')
 
-    if args.out:
-        import json
-        import os
+    if is_med:
+        # MED model: evaluate each dimension separately
+        print(f"MED model detected with dimensions: {model.d_list}")
+        print(f"Evaluating each dimension separately...\n")
 
-        odir = os.path.dirname(args.out)
-        if odir:
-            os.makedirs(odir, exist_ok=True)
-        with open(args.out, "w", encoding="utf-8") as f:
-            json.dump(metrics, f, indent=2)
-        print(f"Saved metrics to {args.out}")
+        all_metrics = {}
+        for dim in model.d_list:
+            print(f"=== Evaluating dimension {dim} ===")
+            # Temporarily crop the base model to this dimension
+            original_dim = model.model.base_dim
+            model.model.base_dim = dim
+
+            metrics_dim = evaluate_model(
+                model.model, dl_head, dl_tail, device=device)
+            all_metrics[f"dim_{dim}"] = metrics_dim
+
+            print(f"Results for dim={dim}:")
+            for k, v in metrics_dim.items():
+                print(f"  {k}: {v}")
+            print()
+
+            # Restore original dimension
+            model.model.base_dim = original_dim
+
+        # Save per-dimension metrics
+        if args.out:
+            import json
+            import os
+
+            odir = os.path.dirname(args.out)
+            if odir:
+                os.makedirs(odir, exist_ok=True)
+            with open(args.out, "w", encoding="utf-8") as f:
+                json.dump(all_metrics, f, indent=2)
+            print(f"Saved per-dimension metrics to {args.out}")
+    else:
+        # Standard model: single evaluation
+        metrics = evaluate_model(model, dl_head, dl_tail, device=device)
+        print("Evaluation results:")
+        for k, v in metrics.items():
+            print(f"{k}: {v}")
+
+        if args.out:
+            import json
+            import os
+
+            odir = os.path.dirname(args.out)
+            if odir:
+                os.makedirs(odir, exist_ok=True)
+            with open(args.out, "w", encoding="utf-8") as f:
+                json.dump(metrics, f, indent=2)
+            print(f"Saved metrics to {args.out}")
 
 
 if __name__ == "__main__":

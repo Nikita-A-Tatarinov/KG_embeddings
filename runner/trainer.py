@@ -103,16 +103,31 @@ def evaluate(model, loaders) -> dict[str, float]:
     loaders: (head_loader, tail_loader), each yields (pos, candidates, mode)
     candidates have the gold at column 0.
     Metrics: MR, MRR, Hits@1/3/10
+
+    For MED models: evaluates the largest dimension only during training
+    (full per-dimension evaluation is done in final evaluation via evaluate.py)
     """
     model.eval()
+
+    # Check if this is a MED wrapper - if so, use the base model at max dimension
+    is_med_wrapper = hasattr(model, 'd_list') and hasattr(model, 'model')
+    if is_med_wrapper:
+        # For MED during training, evaluate only the max dimension
+        eval_model = model.model
+        max_dim = max(model.d_list)
+        # Temporarily set to max dimension
+        original_dim = eval_model.base_dim
+        eval_model.base_dim = max_dim
+    else:
+        eval_model = model
 
     def _eval_one(loader):
         ranks = []
         for pos, cands, mode in loader:
-            pos = pos.to(next(model.parameters()).device)
+            pos = pos.to(next(eval_model.parameters()).device)
             cands = cands.to(pos.device)
             # Build (pos, cands) tuple to feed model; our forward expects (positive, negative-list)
-            logits = model((pos, cands), mode=mode)  # (B, N)
+            logits = eval_model((pos, cands), mode=mode)  # (B, N)
             gold = logits[:, 0:1]  # (B,1)
             # tie-aware rank: 1 + (# >) + 0.5*(# ==)
             # Compare gold score against ALL scores (including itself at position 0)
@@ -136,6 +151,11 @@ def evaluate(model, loaders) -> dict[str, float]:
     m2 = _eval_one(tail)
     # average head/tail
     out = {k: (m1[k] + m2[k]) / 2.0 for k in m1.keys()}
+
+    # Restore original dimension if we changed it
+    if is_med_wrapper:
+        eval_model.base_dim = original_dim
+
     return out
 
 
