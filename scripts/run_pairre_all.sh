@@ -66,6 +66,7 @@ for cfg in "${CONFIGS[@]}"; do
     else
       HF_NAME=""
     fi
+    DATA_ROOT=""
   else
     USE_HF=""
     HF_NAME=""

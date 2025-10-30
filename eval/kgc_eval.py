@@ -42,11 +42,15 @@ def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10)) -> 
             cands = cands.to(device)
             scores = _score_batch(model, pos, cands, mode, device=device)
             # gold is at col 0
-            # compute rank: higher score = better, so rank = 1 + number of candidates with score > gold
-            gold_scores = scores[:, 0]
-            # Compare per-row: count how many have strictly greater score
-            greater = (scores > gold_scores.unsqueeze(1)).sum(dim=1)
-            rank = (greater + 1).cpu().tolist()
+            # compute rank: higher score = better
+            # rank = 1 + (number of scores > gold_score) + 0.5 * (number of scores == gold_score, excluding gold itself)
+            gold_scores = scores[:, 0:1]  # (B, 1)
+            # Count how many have strictly greater score
+            greater = (scores > gold_scores).sum(dim=1)
+            # Count how many have equal score (including gold itself, so subtract 1)
+            equal = (scores == gold_scores).sum(dim=1) - 1
+            # Tie-aware ranking
+            rank = (greater + 1 + 0.5 * equal).cpu().tolist()
             local_ranks.extend(rank)
         return local_ranks
 

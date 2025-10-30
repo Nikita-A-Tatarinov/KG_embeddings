@@ -44,6 +44,14 @@ def build_data(cfg):
     test_bs = int(getattr(cfg.data, "test_bs", 128))
     num_workers = int(getattr(cfg.data, "num_workers", 4))
 
+    # Sampling params for faster experimentation
+    sample_ratio = getattr(cfg.data, "sample_ratio", None)
+    max_entities = getattr(cfg.data, "max_entities", None)
+    max_triples = getattr(cfg.data, "max_triples", None)
+    sample_seed = int(getattr(cfg.data, "sample_seed", 42))
+    # Additional validation sampling for even faster validation during training
+    sample_valid_ratio = getattr(cfg.data, "sample_valid_ratio", None)
+
     name = cfg.dataset.name.lower()
     if name in ("fb15k-237", "fb15k237"):
         from dataset.fb15k237 import prepare_fb15k237
@@ -59,6 +67,11 @@ def build_data(cfg):
             use_hf=use_hf,
             hf_name=hf_name,
             hf_revision=hf_rev,
+            sample_ratio=sample_ratio,
+            max_entities=max_entities,
+            max_triples=max_triples,
+            sample_seed=sample_seed,
+            sample_valid_ratio=sample_valid_ratio,
         )
     elif name == "wn18rr":
         from dataset.wn18rr import prepare_wn18rr
@@ -74,6 +87,11 @@ def build_data(cfg):
             use_hf=use_hf,
             hf_name=hf_name,
             hf_revision=hf_rev,
+            sample_ratio=sample_ratio,
+            max_entities=max_entities,
+            max_triples=max_triples,
+            sample_seed=sample_seed,
+            sample_valid_ratio=sample_valid_ratio,
         )
     else:
         raise ValueError(f"Unknown dataset {cfg.dataset.name}")
@@ -96,9 +114,11 @@ def evaluate(model, loaders) -> dict[str, float]:
             # Build (pos, cands) tuple to feed model; our forward expects (positive, negative-list)
             logits = model((pos, cands), mode=mode)  # (B, N)
             gold = logits[:, 0:1]  # (B,1)
-            # tie-aware rank: 1 + (# >) + 0.5*(# == minus 1)
-            greater = (logits[:, 1:] > gold).sum(dim=1).float()
-            equal = (logits[:, 1:] == gold).sum(dim=1).float()
+            # tie-aware rank: 1 + (# >) + 0.5*(# ==)
+            # Compare gold score against ALL scores (including itself at position 0)
+            greater = (logits > gold).sum(dim=1).float()
+            equal = (logits == gold).sum(dim=1).float() - \
+                1.0  # subtract 1 for gold itself
             r = 1.0 + greater + 0.5 * equal
             ranks.append(r.cpu())
         if not ranks:

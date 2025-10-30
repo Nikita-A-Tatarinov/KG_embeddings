@@ -13,6 +13,22 @@ data:
   test_bs: 128
   num_workers: 4
 
+  # ============================================================================
+  # OPTIONAL: Dataset Sampling (for faster experimentation)
+  # ============================================================================
+  # Uncomment to use a subset for faster training/validation.
+  # Sampling preserves full vocabulary and filters evaluation to training entities.
+  #
+  # Speed (FB15k-237): Full=8-16h, 10%=1h, 10%+20%valid=40min per 100 epochs
+  #
+  # Choose ONE strategy:
+  sample_ratio: 0.1              # 10% of training (272k -> 27k)
+  sample_valid_ratio: 0.2        # 20% of validation for faster epochs
+  # max_entities: 5000             # Top 5000 entities by degree
+  # max_triples: 50000             # Exactly 50k training triples
+  sample_seed: 42                # Reproducibility
+
+
 model:
   name: PairRE
   base_dim: 20
