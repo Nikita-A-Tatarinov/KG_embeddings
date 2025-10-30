@@ -23,23 +23,25 @@ echo "Device: $DEVICE"
 echo ""
 
 CONFIGS=(
-  "${ROOT_DIR}/configs/fb15k237/complex_d10.yaml"
-  "${ROOT_DIR}/configs/fb15k237/complex_d20.yaml"
-  "${ROOT_DIR}/configs/fb15k237/complex_d40.yaml"
-  "${ROOT_DIR}/configs/fb15k237/complex_d80.yaml"
   "${ROOT_DIR}/configs/fb15k237/complex_med.yaml"
   "${ROOT_DIR}/configs/fb15k237/complex_med_rscf.yaml"
   "${ROOT_DIR}/configs/fb15k237/complex_med_mi.yaml"
   "${ROOT_DIR}/configs/fb15k237/complex_med_rscf_mi.yaml"
 
-  "${ROOT_DIR}/configs/wn18rr/complex_d10.yaml"
-  "${ROOT_DIR}/configs/wn18rr/complex_d20.yaml"
-  "${ROOT_DIR}/configs/wn18rr/complex_d40.yaml"
-  "${ROOT_DIR}/configs/wn18rr/complex_d80.yaml"
   "${ROOT_DIR}/configs/wn18rr/complex_med.yaml"
   "${ROOT_DIR}/configs/wn18rr/complex_med_rscf.yaml"
   "${ROOT_DIR}/configs/wn18rr/complex_med_mi.yaml"
   "${ROOT_DIR}/configs/wn18rr/complex_med_rscf_mi.yaml"
+
+  "${ROOT_DIR}/configs/fb15k237/complex_d10.yaml"
+  "${ROOT_DIR}/configs/fb15k237/complex_d20.yaml"
+  "${ROOT_DIR}/configs/fb15k237/complex_d40.yaml"
+  "${ROOT_DIR}/configs/fb15k237/complex_d80.yaml"
+
+  "${ROOT_DIR}/configs/wn18rr/complex_d10.yaml"
+  "${ROOT_DIR}/configs/wn18rr/complex_d20.yaml"
+  "${ROOT_DIR}/configs/wn18rr/complex_d40.yaml"
+  "${ROOT_DIR}/configs/wn18rr/complex_d80.yaml"
 )
 
 SUCCESS_COUNT=0
