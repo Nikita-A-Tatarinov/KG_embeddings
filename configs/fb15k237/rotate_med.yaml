@@ -15,12 +15,12 @@ data:
 
 model:
   name: RotatE
-  base_dim: 160
+  base_dim: 80
   gamma: 12.0
 
 med:
   enabled: true
-  dims: [20, 40, 80, 160]
+  dims: [10, 20, 40, 80]
   submodels_per_step: 3
 
 optim:
@@ -40,5 +40,5 @@ train:
   log_every: 100
   eval_every: 2000
   save_every: 2000
-  out_dir: ./workdir/runs/fb15k237/rotate/med_dims_20_40_80_160
+  out_dir: ./workdir/runs/fb15k237/rotate/med_dims_10_20_40_80
   save_best_metric: MRR

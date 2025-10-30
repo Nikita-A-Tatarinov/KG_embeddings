@@ -23,19 +23,19 @@ echo "Device: $DEVICE"
 echo ""
 
 CONFIGS=(
+  "${ROOT_DIR}/configs/fb15k237/rotate_d10.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_d20.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_d40.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_d80.yaml"
-  "${ROOT_DIR}/configs/fb15k237/rotate_d160.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_med.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_med_rscf.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_med_mi.yaml"
   "${ROOT_DIR}/configs/fb15k237/rotate_med_rscf_mi.yaml"
 
+  "${ROOT_DIR}/configs/wn18rr/rotate_d10.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_d20.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_d40.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_d80.yaml"
-  "${ROOT_DIR}/configs/wn18rr/rotate_d160.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_med.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_med_rscf.yaml"
   "${ROOT_DIR}/configs/wn18rr/rotate_med_mi.yaml"
@@ -55,6 +55,22 @@ for cfg in "${CONFIGS[@]}"; do
   DATASET=$(grep "name:" "$cfg" | head -1 | awk '{print $2}')
   OUT_DIR=$(grep "out_dir:" "$cfg" | awk '{print $2}')
   
+  # Check if using HuggingFace dataset
+  if grep -q "source: hf" "$cfg"; then
+    USE_HF="--use-hf"
+    HF_NAME=$(grep "hf_name:" "$cfg" | awk '{print $2}')
+    if [ -n "$HF_NAME" ]; then
+      HF_NAME="--hf-name $HF_NAME"
+    else
+      HF_NAME=""
+    fi
+  else
+    USE_HF=""
+    HF_NAME=""
+    DATA_ROOT=$(grep "root:" "$cfg" | awk '{print $2}')
+    DATA_ROOT="--data-root $DATA_ROOT"
+  fi
+  
   # Run training (includes final test evaluation in trainer)
   echo "[1/2] Training model..."
   if PYTHONPATH=. python3 train.py --config "$cfg"; then
@@ -65,20 +81,15 @@ for cfg in "${CONFIGS[@]}"; do
     if [ -f "$BEST_CKPT" ]; then
       echo "[2/2] Evaluating best checkpoint..."
       
-      # Determine data root based on dataset source
-      if grep -q "source: hf" "$cfg"; then
-        DATA_ROOT="./data"  # HuggingFace datasets cache
-      else
-        DATA_ROOT="./data"
-      fi
-      
       # Run evaluation and save metrics
       METRICS_FILE="${OUT_DIR}/final_test_metrics.json"
       if PYTHONPATH=. python3 evaluate.py \
           --model RotatE \
           --ckpt "$BEST_CKPT" \
-          --data-root "$DATA_ROOT" \
+          $DATA_ROOT \
           --dataset "$DATASET" \
+          $USE_HF \
+          $HF_NAME \
           --batch-size 128 \
           --filtered \
           --device auto \

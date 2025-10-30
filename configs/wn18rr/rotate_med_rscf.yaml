@@ -15,14 +15,11 @@ data:
 
 model:
   name: RotatE
-  base_dim: 160
+  base_dim: 80
   gamma: 12.0
-  use_rscf: true
-
-med:
-  enabled: true
-  dims: [20, 40, 80, 160]
-  submodels_per_step: 3
+  use_med: true
+  med:
+    dims: [10, 20, 40, 80]
 
 optim:
   name: Adam
@@ -41,5 +38,5 @@ train:
   log_every: 100
   eval_every: 2000
   save_every: 2000
-  out_dir: ./workdir/runs/wn18rr/rotate/med_rscf_dims_20_40_80_160
+  out_dir:   out_dir: ./workdir/runs/wn18rr/rotate/med_rscf_d80
   save_best_metric: MRR

@@ -15,7 +15,7 @@ data:
 
 model:
   name: RotatE
-  base_dim: 80
+  base_dim: 40
   gamma: 12.0
 
 med:
@@ -38,5 +38,5 @@ train:
   log_every: 100
   eval_every: 2000
   save_every: 2000
-  out_dir: ./workdir/runs/wn18rr/rotate/d80
+  out_dir: ./workdir/runs/wn18rr/rotate/d40
   save_best_metric: MRR
