@@ -23,25 +23,25 @@ echo "Device: $DEVICE"
 echo ""
 
 CONFIGS=(
-  "${ROOT_DIR}/configs/fb15k237/pairre_med.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_med_rscf.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_med_mi.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_med_rscf_mi.yaml"
-
+  # WN18RR experiments first
   "${ROOT_DIR}/configs/wn18rr/pairre_med.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_med_rscf.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_med_mi.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_med_rscf_mi.yaml"
-
-  "${ROOT_DIR}/configs/fb15k237/pairre_d10.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_d20.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_d40.yaml"
-  "${ROOT_DIR}/configs/fb15k237/pairre_d80.yaml"
-
   "${ROOT_DIR}/configs/wn18rr/pairre_d10.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_d20.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_d40.yaml"
   "${ROOT_DIR}/configs/wn18rr/pairre_d80.yaml"
+
+  # FB15k237 experiments second
+  "${ROOT_DIR}/configs/fb15k237/pairre_med.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_med_rscf.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_med_mi.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_med_rscf_mi.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_d10.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_d20.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_d40.yaml"
+  "${ROOT_DIR}/configs/fb15k237/pairre_d80.yaml"
 )
 
 SUCCESS_COUNT=0

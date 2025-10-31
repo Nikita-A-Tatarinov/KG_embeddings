@@ -23,25 +23,25 @@ echo "Device: $DEVICE"
 echo ""
 
 CONFIGS=(
-  "${ROOT_DIR}/configs/fb15k237/transh_med.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_med_rscf.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_med_mi.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_med_rscf_mi.yaml"
-
+  # WN18RR experiments first
   "${ROOT_DIR}/configs/wn18rr/transh_med.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_med_rscf.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_med_mi.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_med_rscf_mi.yaml"
-
-  "${ROOT_DIR}/configs/fb15k237/transh_d10.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_d20.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_d40.yaml"
-  "${ROOT_DIR}/configs/fb15k237/transh_d80.yaml"
-
   "${ROOT_DIR}/configs/wn18rr/transh_d10.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_d20.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_d40.yaml"
   "${ROOT_DIR}/configs/wn18rr/transh_d80.yaml"
+
+  # FB15k237 experiments second
+  "${ROOT_DIR}/configs/fb15k237/transh_med.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_med_rscf.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_med_mi.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_med_rscf_mi.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_d10.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_d20.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_d40.yaml"
+  "${ROOT_DIR}/configs/fb15k237/transh_d80.yaml"
 )
 
 SUCCESS_COUNT=0
