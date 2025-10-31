@@ -32,7 +32,7 @@ def prepare_wn18rr(
 
     if use_hf:
         train, valid, test, ent2id, rel2id = load_kg_hf(
-            hf_name or "KGraph/WN18RR", revision=hf_revision)
+            hf_name or "VLyb/WN18RR", revision=hf_revision)
     else:
         train, valid, test, ent2id, rel2id = load_kg(
             root, "WN18RR", prefer_ids=prefer_ids)
