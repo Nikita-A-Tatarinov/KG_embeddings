@@ -112,12 +112,27 @@ def evaluate(model, loaders) -> dict[str, float]:
     # Check if this is a MED wrapper - if so, use the base model at max dimension
     is_med_wrapper = hasattr(model, 'd_list') and hasattr(model, 'model')
     if is_med_wrapper:
-        # For MED during training, evaluate only the max dimension
-        eval_model = model.model
-        max_dim = max(model.d_list)
-        # Temporarily set to max dimension
-        original_dim = eval_model.base_dim
-        eval_model.base_dim = max_dim
+        # For MED during training, evaluate all dimensions to find the best
+        original_dim = model.model.base_dim
+        all_metrics = []
+        for d in model.d_list:
+            model.model.base_dim = d
+            metrics = _eval_one(head)
+            metrics.update(_eval_one(tail))
+            all_metrics.append(metrics)
+
+        # Restore original dimension
+        model.model.base_dim = original_dim
+
+        # Find best MRR across dimensions
+        best_mrr = -1
+        best_metrics = None
+        for m in all_metrics:
+            if m['MRR'] > best_mrr:
+                best_mrr = m['MRR']
+                best_metrics = m
+        return best_metrics
+
     else:
         eval_model = model
 
