@@ -117,6 +117,7 @@ def evaluate(model, loaders) -> dict[str, float]:
         all_metrics = []
         for d in model.d_list:
             model.model.base_dim = d
+            head, tail = loaders
             metrics = _eval_one(head)
             metrics.update(_eval_one(tail))
             all_metrics.append(metrics)
