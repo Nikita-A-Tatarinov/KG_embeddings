@@ -70,17 +70,24 @@ class MEDTrainer(nn.Module):
         return torch.where(ax <= delta, 0.5 * ax * ax, delta * (ax - 0.5 * delta))
 
     def _pick_indices(self):
-        n = len(self.d_list)
-        m = min(self.submodels_per_step, n)
-        if n == m:
-            return list(range(n))
-        j = random.randrange(n)
-        left = max(0, j - m // 2)
-        right = min(n, left + m)
-        left = max(0, right - m)
-        return list(range(left, right))
+        """Select dimension indices for this training step.
 
-    # ----- forward: compute MED loss -----
+        IMPLEMENTATION DECISION:
+        Paper uses "uniformly sampled sub-models" with n=64 to reduce compute.
+        However, random sampling causes severe loss instability when switching
+        between dimension subsets (e.g., [10,20,40] -> [20,40,80]) because:
+        1. Different subsets have different total alpha weights
+        2. Larger dimensions appear in some subsets but not others
+        3. When a large untrained dimension suddenly appears, loss spikes
+
+        For small n (like our n=4), we train ALL dimensions for stability.
+        For large n (like paper's n=64), they accept some instability for efficiency.
+        """
+        # With only 4 dimensions, train all for stability
+        # (Paper uses sampling only for n=64 to reduce compute cost)
+        # ----- forward: compute MED loss -----
+        return list(range(len(self.d_list)))
+
     def forward(self, pos_triples: torch.LongTensor, neg_candidates: torch.LongTensor, mode: str):
         """
         pos_triples: (B,3) LongTensor
