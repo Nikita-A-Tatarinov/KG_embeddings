@@ -79,16 +79,29 @@ for cfg in "${CONFIGS[@]}"; do
   if PYTHONPATH=. python3 train.py --config "$cfg"; then
     echo "✓ Training completed successfully"
     
-    # Run explicit evaluation on best checkpoint if it exists
+    # Run explicit evaluation on best or final checkpoint
     BEST_CKPT="${OUT_DIR}/ckpt_best_mrr.pt"
+    FINAL_CKPT="${OUT_DIR}/ckpt_final.pt"
+    
     if [ -f "$BEST_CKPT" ]; then
+      EVAL_CKPT="$BEST_CKPT"
       echo "[2/2] Evaluating best checkpoint..."
-      
+    elif [ -f "$FINAL_CKPT" ]; then
+      EVAL_CKPT="$FINAL_CKPT"
+      echo "[2/2] Evaluating final checkpoint (no validation occurred)..."
+    else
+      echo "⚠ No checkpoint found, skipping explicit evaluation"
+      echo "  (Training may have included test evaluation already)"
+      SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+      EVAL_CKPT=""
+    fi
+    
+    if [ -n "$EVAL_CKPT" ]; then
       # Run evaluation and save metrics
       METRICS_FILE="${OUT_DIR}/final_test_metrics.json"
       if PYTHONPATH=. python3 evaluate.py \
           --model ComplEx \
-          --ckpt "$BEST_CKPT" \
+          --ckpt "$EVAL_CKPT" \
           $DATA_ROOT \
           --dataset "$DATASET" \
           $USE_HF \
@@ -105,10 +118,6 @@ for cfg in "${CONFIGS[@]}"; do
         FAIL_COUNT=$((FAIL_COUNT + 1))
         FAILED_CONFIGS+=("$cfg (eval)")
       fi
-    else
-      echo "⚠ Best checkpoint not found, skipping explicit evaluation"
-      echo "  (Training may have included test evaluation already)"
-      SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     fi
   else
     echo "✗ Training failed"

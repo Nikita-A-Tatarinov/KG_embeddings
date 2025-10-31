@@ -487,6 +487,17 @@ class Trainer:
 
             # end epoch
 
+        # Save final checkpoint
+        save_checkpoint(
+            self.out_dir,
+            "final",
+            {"step": self.global_step, "epoch": epoch},
+            self.train_obj,
+            self.optimizer,
+            self.scheduler,
+            model_config=self.model_config,
+        )
+
         # final eval on test (skip if requested, useful for quick smoke runs)
         if not bool(getattr(self.cfg.train, "skip_final_eval", False)):
             test_metrics = evaluate(
