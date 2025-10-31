@@ -22,11 +22,11 @@ data:
   # Speed (FB15k-237): Full=8-16h, 10%=1h, 10%+20%valid=40min per 100 epochs
   #
   # Choose ONE strategy:
-  sample_ratio: 0.1              # 10% of training (272k -> 27k)
-  sample_valid_ratio: 0.2        # 20% of validation for faster epochs
+#  sample_ratio: 0.1              # 10% of training (272k -> 27k)
+#  sample_valid_ratio: 0.2        # 20% of validation for faster epochs
   # max_entities: 5000             # Top 5000 entities by degree
   # max_triples: 50000             # Exactly 50k training triples
-  sample_seed: 42                # Reproducibility
+#  sample_seed: 42                # Reproducibility
 
 
 model:
@@ -56,7 +56,7 @@ sched:
 train:
   epochs: 100
   log_every: 100
-  eval_every: 2000
-  save_every: 2000
+  eval_every: 5000
+  save_every: 10000
   out_dir: ./workdir/runs/wn18rr/transh/med_mi_dims_10_20_40_80
   save_best_metric: MRR
