@@ -113,17 +113,40 @@ def evaluate(model, loaders) -> dict[str, float]:
     is_med_wrapper = hasattr(model, 'd_list') and hasattr(model, 'model')
     if is_med_wrapper:
         # For MED during training, evaluate all dimensions to find the best
-        original_dim = model.model.base_dim
+        eval_model = model.model  # Get the underlying KGModel
         all_metrics = []
-        for d in model.d_list:
-            model.model.base_dim = d
-            head, tail = loaders
-            metrics = _eval_one(head)
-            metrics.update(_eval_one(tail))
-            all_metrics.append(metrics)
 
-        # Restore original dimension
-        model.model.base_dim = original_dim
+        def _eval_one_dim(loader, dim):
+            ranks = []
+            for pos, cands, mode in loader:
+                pos = pos.to(next(eval_model.parameters()).device)
+                cands = cands.to(pos.device)
+                # CRITICAL: Pass crop_dim to the model forward!
+                logits = eval_model((pos, cands), mode=mode,
+                                    crop_dim=dim)  # (B, N)
+                gold = logits[:, 0:1]  # (B,1)
+                # tie-aware rank: 1 + (# >) + 0.5*(# ==)
+                greater = (logits > gold).sum(dim=1).float()
+                equal = (logits == gold).sum(dim=1).float() - 1.0
+                r = 1.0 + greater + 0.5 * equal
+                ranks.append(r.cpu())
+            if not ranks:
+                return {"MR": float("nan"), "MRR": float("nan"), "H@1": 0.0, "H@3": 0.0, "H@10": 0.0}
+            ranks = torch.cat(ranks, dim=0)
+            mr = ranks.mean().item()
+            mrr = (1.0 / ranks).mean().item()
+            h1 = (ranks <= 1).float().mean().item()
+            h3 = (ranks <= 3).float().mean().item()
+            h10 = (ranks <= 10).float().mean().item()
+            return {"MR": mr, "MRR": mrr, "H@1": h1, "H@3": h3, "H@10": h10}
+
+        for d in model.d_list:
+            head, tail = loaders
+            m1 = _eval_one_dim(head, d)
+            m2 = _eval_one_dim(tail, d)
+            # average head/tail
+            metrics = {k: (m1[k] + m2[k]) / 2.0 for k in m1.keys()}
+            all_metrics.append(metrics)
 
         # Find best MRR across dimensions
         best_mrr = -1
@@ -167,10 +190,6 @@ def evaluate(model, loaders) -> dict[str, float]:
     m2 = _eval_one(tail)
     # average head/tail
     out = {k: (m1[k] + m2[k]) / 2.0 for k in m1.keys()}
-
-    # Restore original dimension if we changed it
-    if is_med_wrapper:
-        eval_model.base_dim = original_dim
 
     return out
 
