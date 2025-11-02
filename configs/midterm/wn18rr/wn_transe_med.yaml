@@ -39,5 +39,5 @@ train:
   log_every: 100
   eval_every: 5000
   save_every: 10000
-  out_dir: ./workdir/runs/transe/med
+  out_dir: ./workdir/runs/wn18rr/transe/med
   save_best_metric: MRR

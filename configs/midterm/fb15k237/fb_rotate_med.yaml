@@ -40,5 +40,5 @@ train:
   log_every: 100
   eval_every: 5000
   save_every: 10000
-  out_dir: ./workdir/runs/rotate/med
+  out_dir: ./workdir/runs/fb15k237/rotate/med
   save_best_metric: MRR
