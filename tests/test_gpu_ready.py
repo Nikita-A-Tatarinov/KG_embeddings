@@ -9,8 +9,10 @@ This test verifies that:
 
 Run this before starting large-scale GPU training.
 """
-import torch
+
 import sys
+
+import torch
 
 
 def check_gpu():
@@ -62,8 +64,7 @@ def test_model_on_gpu():
     device = torch.device("cuda:0")
 
     # Create a small model
-    model = create_model("TransE", nentity=100,
-                         nrelation=10, base_dim=50, gamma=12.0)
+    model = create_model("TransE", nentity=100, nrelation=10, base_dim=50, gamma=12.0)
     model = model.to(device)
 
     # Create sample data
@@ -87,8 +88,7 @@ def test_training_step_on_gpu():
     device = torch.device("cuda:0")
 
     # Create model and optimizer
-    model = create_model("RotatE", nentity=100,
-                         nrelation=10, base_dim=50, gamma=12.0)
+    model = create_model("RotatE", nentity=100, nrelation=10, base_dim=50, gamma=12.0)
     model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
@@ -121,16 +121,15 @@ def test_wrappers_on_gpu():
     """Test that MED, RSCF, MI wrappers work on GPU."""
     print("Testing wrappers on GPU...")
 
+    from med.med_wrapper import MEDTrainer
+    from models.mi_wrapper import attach_mi
     from models.registry import create_model
     from models.rscf_wrapper import attach_rscf
-    from models.mi_wrapper import attach_mi
-    from med.med_wrapper import MEDTrainer
 
     device = torch.device("cuda:0")
 
     # Test RSCF
-    model_rscf = create_model("TransE", nentity=50,
-                              nrelation=5, base_dim=32, gamma=12.0)
+    model_rscf = create_model("TransE", nentity=50, nrelation=5, base_dim=32, gamma=12.0)
     attach_rscf(model_rscf)
     model_rscf = model_rscf.to(device)
     sample = torch.randint(0, 50, (4, 3), dtype=torch.long, device=device)
@@ -139,8 +138,7 @@ def test_wrappers_on_gpu():
     print("  ✓ RSCF wrapper works on GPU")
 
     # Test MI
-    model_mi = create_model("TransE", nentity=50,
-                            nrelation=5, base_dim=32, gamma=12.0)
+    model_mi = create_model("TransE", nentity=50, nrelation=5, base_dim=32, gamma=12.0)
     attach_mi(model_mi, use_info_nce=True)
     model_mi = model_mi.to(device)
     pos = torch.randint(0, 50, (4, 3), dtype=torch.long, device=device)
@@ -149,10 +147,8 @@ def test_wrappers_on_gpu():
     print("  ✓ MI wrapper works on GPU")
 
     # Test MED
-    base_model = create_model("TransE", nentity=50,
-                              nrelation=5, base_dim=32, gamma=12.0)
-    model_med = MEDTrainer(base_model, d_list=[
-                           8, 16, 32], submodels_per_step=2)
+    base_model = create_model("TransE", nentity=50, nrelation=5, base_dim=32, gamma=12.0)
+    model_med = MEDTrainer(base_model, d_list=[8, 16, 32], submodels_per_step=2)
     model_med = model_med.to(device)
     pos = torch.randint(0, 50, (4, 3), dtype=torch.long, device=device)
     neg = torch.randint(0, 50, (4, 8), dtype=torch.long, device=device)
@@ -166,15 +162,22 @@ def test_dataloader_gpu_transfer():
     """Test that data can be efficiently transferred to GPU."""
     print("Testing data loading and GPU transfer...")
 
-    from dataset.kg_dataset import KGIndex, build_train_loaders, BidirectionalOneShotIterator
+    from dataset.kg_dataset import BidirectionalOneShotIterator, KGIndex, build_train_loaders
 
     device = torch.device("cuda:0")
 
     # Create small synthetic dataset
-    train_ids = torch.tensor([
-        [0, 0, 1], [1, 0, 2], [2, 1, 3],
-        [0, 1, 3], [3, 0, 1], [1, 1, 0],
-    ], dtype=torch.long)
+    train_ids = torch.tensor(
+        [
+            [0, 0, 1],
+            [1, 0, 2],
+            [2, 1, 3],
+            [0, 1, 3],
+            [3, 0, 1],
+            [1, 1, 0],
+        ],
+        dtype=torch.long,
+    )
 
     nentity, nrelation = 10, 5
     all_true = KGIndex(train_ids.tolist(), nentity, nrelation)
@@ -241,6 +244,7 @@ def main():
         print()
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

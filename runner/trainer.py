@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import random
 import time
-from types import SimpleNamespace
 
 import torch
 import torch.nn.functional as F
@@ -110,11 +109,13 @@ def evaluate(model, loaders) -> dict[str, float]:
     model.eval()
 
     # Check if this is a MED wrapper - if so, use the base model at max dimension
-    is_med_wrapper = hasattr(model, 'd_list') and hasattr(model, 'model')
+    is_med_wrapper = hasattr(model, "d_list") and hasattr(model, "model")
     if is_med_wrapper:
         # For MED during training, evaluate all dimensions to find the best
         eval_model = model.model  # Get the underlying KGModel
-        all_metrics = []
+        all_metrics = {}
+        best_mrr = -1
+        best_metrics = None
 
         def _eval_one_dim(loader, dim):
             ranks = []
@@ -122,8 +123,7 @@ def evaluate(model, loaders) -> dict[str, float]:
                 pos = pos.to(next(eval_model.parameters()).device)
                 cands = cands.to(pos.device)
                 # CRITICAL: Pass crop_dim to the model forward!
-                logits = eval_model((pos, cands), mode=mode,
-                                    crop_dim=dim)  # (B, N)
+                logits = eval_model((pos, cands), mode=mode, crop_dim=dim)  # (B, N)
                 gold = logits[:, 0:1]  # (B,1)
                 # tie-aware rank: 1 + (# >) + 0.5*(# ==)
                 greater = (logits > gold).sum(dim=1).float()
@@ -146,16 +146,12 @@ def evaluate(model, loaders) -> dict[str, float]:
             m2 = _eval_one_dim(tail, d)
             # average head/tail
             metrics = {k: (m1[k] + m2[k]) / 2.0 for k in m1.keys()}
-            all_metrics.append(metrics)
+            if metrics["MRR"] > best_mrr:
+                best_mrr = metrics["MRR"]
+                best_metrics = metrics
+            all_metrics[f"dim_{d}"] = metrics
 
-        # Find best MRR across dimensions
-        best_mrr = -1
-        best_metrics = None
-        for m in all_metrics:
-            if m['MRR'] > best_mrr:
-                best_mrr = m['MRR']
-                best_metrics = m
-        return best_metrics
+        return best_metrics, all_metrics
 
     else:
         eval_model = model
@@ -171,8 +167,7 @@ def evaluate(model, loaders) -> dict[str, float]:
             # tie-aware rank: 1 + (# >) + 0.5*(# ==)
             # Compare gold score against ALL scores (including itself at position 0)
             greater = (logits > gold).sum(dim=1).float()
-            equal = (logits == gold).sum(dim=1).float() - \
-                1.0  # subtract 1 for gold itself
+            equal = (logits == gold).sum(dim=1).float() - 1.0  # subtract 1 for gold itself
             r = 1.0 + greater + 0.5 * equal
             ranks.append(r.cpu())
         if not ranks:
@@ -191,7 +186,7 @@ def evaluate(model, loaders) -> dict[str, float]:
     # average head/tail
     out = {k: (m1[k] + m2[k]) / 2.0 for k in m1.keys()}
 
-    return out
+    return out, None
 
 
 class Trainer:
@@ -202,19 +197,18 @@ class Trainer:
         set_seed(cfg.seed)
 
         # 1) Data
-        self.train_iter, self.valid_loaders, self.test_loaders, meta = build_data(
-            cfg)
+        self.train_iter, self.valid_loaders, self.test_loaders, meta = build_data(cfg)
         self.nentity, self.nrelation = meta["nentity"], meta["nrelation"]
         # steps/epoch = head_batches + tail_batches
-        self.steps_per_epoch = len(
-            self.train_iter._src_head) + len(self.train_iter._src_tail)
+        self.steps_per_epoch = len(self.train_iter._src_head) + len(self.train_iter._src_tail)
 
         # 2) Model (or MED)
         # Avoid passing plugin-specific flags (use_rscf/use_mi/mi_*) into model ctor
         model_ctor_kwargs = {
             k: v
             for k, v in vars(cfg.model).items()
-            if k not in (
+            if k
+            not in (
                 "name",
                 "base_dim",
                 "gamma",
@@ -243,8 +237,7 @@ class Trainer:
             try:
                 from models.rscf_wrapper import attach_rscf
 
-                attach_rscf(model, use_et=getattr(
-                    cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
+                attach_rscf(model, use_et=getattr(cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
             except Exception as exc:  # pragma: no cover - best-effort
                 print(f"Warning: failed to attach RSCF: {exc}")
 
@@ -255,11 +248,9 @@ class Trainer:
 
                 # allow passing some mi options via cfg.model
                 mi_q_dim = getattr(cfg.model, "mi_q_dim", None)
-                mi_use_info_nce = bool(
-                    getattr(cfg.model, "mi_use_info_nce", True))
+                mi_use_info_nce = bool(getattr(cfg.model, "mi_use_info_nce", True))
                 mi_use_jsd = bool(getattr(cfg.model, "mi_use_jsd", False))
-                attach_mi(model, q_dim=mi_q_dim,
-                          use_info_nce=mi_use_info_nce, use_jsd=mi_use_jsd)
+                attach_mi(model, q_dim=mi_q_dim, use_info_nce=mi_use_info_nce, use_jsd=mi_use_jsd)
             except Exception as exc:  # pragma: no cover - best-effort
                 print(f"Warning: failed to attach MI module: {exc}")
 
@@ -267,28 +258,38 @@ class Trainer:
             # pass MI-related kwargs to MEDTrainer via cfg.med if present (e.g., mi_lambda)
             med_kwargs = {}
             # carry over mi_lambda if set at config.model.mi_lambda
-            med_kwargs["mi_lambda"] = float(
-                getattr(cfg.model, "mi_lambda", 0.0))
+            med_kwargs["mi_lambda"] = float(getattr(cfg.model, "mi_lambda", 0.0))
             med_kwargs["mi_neg_size"] = int(getattr(cfg.data, "neg_size", 64))
-            self.train_obj = MEDTrainer(
-                model, d_list=cfg.med.dims, submodels_per_step=cfg.med.submodels_per_step, **med_kwargs
-            ).to(self.device)
+            self.train_obj = MEDTrainer(model, d_list=cfg.med.dims, submodels_per_step=cfg.med.submodels_per_step, **med_kwargs).to(
+                self.device
+            )
         else:
             self.train_obj = model  # plain
 
         # 3) Optimizer & Scheduler
         self.optimizer = build_optimizer(self.train_obj.parameters(), cfg)
-        total_steps = cfg.sched.total_steps or (
-            cfg.train.epochs * self.steps_per_epoch)
+        total_steps = cfg.sched.total_steps or (cfg.train.epochs * self.steps_per_epoch)
         self.scheduler = build_scheduler(self.optimizer, cfg, total_steps)
 
         # 4) Logging
         base_cols = ["step", "epoch", "loss", "lr", "time"]
-        med_cols = ["L_total", "L_ml", "L_ei"] if getattr(
-            cfg.med, "enabled", False) else ["L_total"]
-        eval_cols = [f"val_{k}" for k in ["MR", "MRR", "H@1", "H@3", "H@10"]]
-        self.logger = CSVLogger(
-            out_dir, fieldnames=base_cols + med_cols + eval_cols)
+        med_cols = ["L_total", "L_ml", "L_ei"] if getattr(cfg.med, "enabled", False) else ["L_total"]
+
+        metrics_keys = ["MR", "MRR", "H@1", "H@3", "H@10"]
+        eval_cols = [f"val_{k}" for k in metrics_keys]
+
+        test_cols = [f"test_{k}" for k in metrics_keys]
+        dim_test_cols = []
+
+        # If MED is enabled, pre-register per-dimension metric columns so CSV headers cover them.
+        dim_eval_cols = []
+        if getattr(cfg.med, "enabled", False):
+            for d in cfg.med.dims:
+                for k in metrics_keys:
+                    dim_eval_cols.append(f"val_dim_{d}_{k}")
+                    dim_test_cols.append(f"test_dim_{d}_{k}")
+
+        self.logger = CSVLogger(out_dir, fieldnames=base_cols + med_cols + eval_cols + test_cols + dim_eval_cols + dim_test_cols)
         self.timer = Timer()
 
         # 5) Book-keeping
@@ -336,12 +337,11 @@ class Trainer:
             f"step {step}",
             f"loss {loss:.4f}",
         ]
-        if "L_total" in row:
-            parts.append(f"L_total {row['L_total']:.4f}")
-        if "L_ml" in row:
-            parts.append(f"L_ml {row['L_ml']:.4f}")
-        if "L_ei" in row:
-            parts.append(f"L_ei {row['L_ei']:.4f}")
+        for k, v in row.items():
+            if k in ["step", "epoch", "loss", "lr", "time"] or not isinstance(v, float):
+                continue
+            parts.append(f"{k} {v:.6f}")
+
         parts += [
             f"lr {lr:.6g}",
             f"{it_per_s:.1f} it/s",
@@ -366,70 +366,42 @@ class Trainer:
 
                 self.optimizer.zero_grad(set_to_none=True)
 
+                if getattr(self.cfg.model, "use_mi", False) and hasattr(self.train_obj, "compute_mi_loss"):
+                    # manual OpenKE-like forward/backward so we can add MI loss
+                    self.train_obj.train() if hasattr(self.train_obj, "train") else None
+                    # positive score (single)
+                    positive_score = self.train_obj(pos)
+                    # negative score (batch)
+                    negative_score = self.train_obj((pos, neg), mode=mode)
+
+                    # compute OpenKE-style losses (simple version: BCE with logits)
+                    # positive
+                    pos_logits = positive_score.squeeze(1)
+                    pos_loss = -F.logsigmoid(pos_logits).mean()
+                    # negative
+                    neg_loss = -F.logsigmoid(-negative_score).mean()
+                    kge_loss = (pos_loss + neg_loss) / 2.0
+
+                    # MI loss (on positive triples)
+                    mi_lambda = float(getattr(self.cfg.model, "mi_lambda", 1.0))
+                    mi_loss = self.train_obj.compute_mi_loss(pos, neg_size=int(getattr(self.cfg.data, "neg_size", 64)))
+
+                    loss = kge_loss + mi_lambda * mi_loss
+                    stats = {"L_total": float(loss.detach())}
+
+                    # backward & step
+                    loss.backward()
+                    if grad_clip > 0:
+                        torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
+                    self.optimizer.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+
                 if self.cfg.med.enabled:
                     loss, stats = self.train_obj(pos, neg, mode=mode)
                     loss.backward()
-                else:
-                    # If MI is enabled we need to compute and incorporate the MI loss.
-                    if getattr(self.cfg.model, "use_mi", False) and hasattr(self.train_obj, "compute_mi_loss"):
-                        # manual OpenKE-like forward/backward so we can add MI loss
-                        self.train_obj.train() if hasattr(self.train_obj, "train") else None
-                        # positive score (single)
-                        positive_score = self.train_obj(pos)
-                        # negative score (batch)
-                        negative_score = self.train_obj((pos, neg), mode=mode)
-
-                        # compute OpenKE-style losses (simple version: BCE with logits)
-                        # positive
-                        pos_logits = positive_score.squeeze(1)
-                        pos_loss = -F.logsigmoid(pos_logits).mean()
-                        # negative
-                        neg_loss = -F.logsigmoid(-negative_score).mean()
-                        kge_loss = (pos_loss + neg_loss) / 2.0
-
-                        # MI loss (on positive triples)
-                        mi_lambda = float(
-                            getattr(self.cfg.model, "mi_lambda", 1.0))
-                        mi_loss = self.train_obj.compute_mi_loss(
-                            pos, neg_size=int(getattr(self.cfg.data, "neg_size", 64)))
-
-                        loss = kge_loss + mi_lambda * mi_loss
-                        stats = {"L_total": float(loss.detach())}
-
-                        # backward & step
-                        loss.backward()
-                        if grad_clip > 0:
-                            torch.nn.utils.clip_grad_norm_(
-                                self.train_obj.parameters(), grad_clip)
-                        self.optimizer.step()
-                        if self.scheduler is not None:
-                            self.scheduler.step()
-                    else:
-                        # Use the OpenKE-compatible helper on the **underlying** model
-                        # OpenKE-style train_step: pass a cuda flag that reflects actual device
-                        cuda_flag = True if (isinstance(
-                            self.device, str) and self.device.startswith("cuda")) else False
-                        loss_stats = self.train_obj.train_step(
-                            self.train_obj,
-                            self.optimizer,
-                            iter([(pos, neg, w, mode)]),
-                            SimpleNamespace(
-                                cuda=cuda_flag,
-                                negative_adversarial_sampling=False,
-                                uni_weight=True,
-                                regularization=0.0,
-                            ),
-                        )
-                        # train_step already does optimizer.step(), so undo zero_grad/step logic
-                        # For consistent logging we reconstruct a loss number:
-                        loss = torch.tensor(
-                            loss_stats["loss"], device=self.device)
-                        stats = {"L_total": float(loss.detach())}
-
-                if self.cfg.med.enabled:
                     if grad_clip > 0:
-                        torch.nn.utils.clip_grad_norm_(
-                            self.train_obj.parameters(), grad_clip)
+                        torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
                     self.optimizer.step()
                     if self.scheduler is not None:
                         self.scheduler.step()
@@ -451,25 +423,32 @@ class Trainer:
 
                 # ---- eval/save ----
                 if self.global_step % eval_every == 0:
-                    metrics = evaluate(
-                        self.train_obj.model if hasattr(
-                            self.train_obj, "model") else self.train_obj, self.valid_loaders
-                    )
-                    row = {"step": self.global_step, "epoch": epoch,
-                           **{f"val_{k}": v for k, v in metrics.items()}}
+                    best_metrics, all_metrics = evaluate(self.train_obj, self.valid_loaders)
+                    # Always log the best metrics
+                    row = {
+                        "step": self.global_step,
+                        "epoch": epoch,
+                        **{f"val_{k}": v for k, v in best_metrics.items()},
+                    }
+
+                    # If we have per-dimension metrics, flatten and log them too
+                    if all_metrics is not None:
+                        for dim_name, m in all_metrics.items():  # e.g., dim_name = "dim_32"
+                            for k, v in m.items():  # k in ["MR","MRR","H@1","H@3","H@10"]
+                                row[f"val_{dim_name}_{k}"] = v
+
                     self.logger.log(row)
                     print(
                         f"[eval] step {self.global_step} | "
-                        f"MRR {metrics['MRR']:.4f} | MR {metrics['MR']:.1f} | "
-                        f"H@1 {metrics['H@1']:.4f} | H@3 {metrics['H@3']:.4f} | H@10 {metrics['H@10']:.4f}"
+                        f"MRR {best_metrics['MRR']:.4f} | MR {best_metrics['MR']:.1f} | "
+                        f"H@1 {best_metrics['H@1']:.4f} | H@3 {best_metrics['H@3']:.4f} | H@10 {best_metrics['H@10']:.4f}"
                     )
 
                     # save "last"
                     save_checkpoint(
                         self.out_dir,
                         "last",
-                        {"step": self.global_step,
-                            "epoch": epoch, "metrics": metrics},
+                        {"step": self.global_step, "epoch": epoch, "metrics": best_metrics},
                         self.train_obj,
                         self.optimizer,
                         self.scheduler,
@@ -478,15 +457,14 @@ class Trainer:
 
                     # save best
                     key = getattr(self.cfg.train, "save_best_metric", "MRR")
-                    cur = float(metrics.get(key, -1.0))
+                    cur = float(best_metrics.get(key, -1.0))
                     if cur > self.best_metric:
                         self.best_metric = cur
                         self.best_tag = f"best_{key.lower()}"
                         save_checkpoint(
                             self.out_dir,
                             self.best_tag,
-                            {"step": self.global_step,
-                                "epoch": epoch, "metrics": metrics},
+                            {"step": self.global_step, "epoch": epoch, "metrics": best_metrics},
                             self.train_obj,
                             self.optimizer,
                             self.scheduler,
@@ -519,12 +497,17 @@ class Trainer:
 
         # final eval on test (skip if requested, useful for quick smoke runs)
         if not bool(getattr(self.cfg.train, "skip_final_eval", False)):
-            test_metrics = evaluate(
-                self.train_obj.model if hasattr(
-                    self.train_obj, "model") else self.train_obj, self.test_loaders
-            )
-            self.logger.log({f"test_{k}": v for k, v in test_metrics.items()})
-            print("Test:", {k: round(v, 4) for k, v in test_metrics.items()})
+            test_metrics, all_metrics = evaluate(self.train_obj, self.test_loaders)
+
+            row = {"step": self.global_step, "epoch": epoch, **{f"test_{k}": v for k, v in test_metrics.items()}}
+
+            if all_metrics is not None:
+                for dim_name, m in all_metrics.items():  # e.g., "dim_32"
+                    for k, v in m.items():  # "MR","MRR","H@1","H@3","H@10"
+                        row[f"test_{dim_name}_{k}"] = v
+
+            self.logger.log(row)
+            print("Test:", {k: round(v, 6) for k, v in test_metrics.items()})
         else:
             print("Skipping final test evaluation (skip_final_eval=True)")
         self.logger.close()

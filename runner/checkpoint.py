@@ -19,7 +19,7 @@ def save_checkpoint(
     """Save checkpoint with optional model configuration.
 
     Args:
-        model_config: Dict with keys like 'model_name', 'base_dim', 'nentity', 
+        model_config: Dict with keys like 'model_name', 'base_dim', 'nentity',
                       'nrelation', 'gamma', 'med_enabled', 'd_list', etc.
                       This enables proper model reconstruction during evaluation.
     """
@@ -27,7 +27,7 @@ def save_checkpoint(
 
     # If model_obj is a MEDTrainer wrapper, save the underlying model's state_dict
     # This ensures compatibility when loading for evaluation
-    if hasattr(model_obj, 'model') and hasattr(model_obj, 'w1'):  # MEDTrainer has both
+    if hasattr(model_obj, "model") and hasattr(model_obj, "w1"):  # MEDTrainer has both
         actual_model_state = model_obj.model.state_dict()
     else:
         actual_model_state = model_obj.state_dict()

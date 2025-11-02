@@ -83,9 +83,7 @@ def run_smoke(device=None):
         if name.lower() == "pairre":
             extra["nonneg"] = True  # harmless; toggles softplus on r1, r2
 
-        model = create_model(
-            name, nentity=n_ent, nrelation=n_rel, base_dim=base_dim, gamma=12.0, evaluator=None, **extra
-        ).to(device)
+        model = create_model(name, nentity=n_ent, nrelation=n_rel, base_dim=base_dim, gamma=12.0, evaluator=None, **extra).to(device)
 
         model.eval()
         with torch.no_grad():

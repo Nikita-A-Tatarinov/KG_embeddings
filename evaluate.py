@@ -4,56 +4,48 @@ Usage (example):
   PYTHONPATH=. python evaluate.py --model TransE --ckpt path/to/ckpt.pt --data-root dataset --dataset FB15k-237
   PYTHONPATH=. python evaluate.py --model TransE --ckpt path/to/ckpt.pt --dataset FB15k-237 --use-hf
 """
+
 from __future__ import annotations
 
 import argparse
+
 import torch
 
+from dataset.kg_dataset import KGIndex, build_test_loaders, load_kg
+from eval.kgc_eval import evaluate_model
 from models.registry import create_model
 from runner.checkpoint import load_checkpoint
-from dataset.kg_dataset import load_kg, build_test_loaders, KGIndex
-from eval.kgc_eval import evaluate_model
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", required=True,
-                        help="Model name (as registered)")
+    parser.add_argument("--model", required=True, help="Model name (as registered)")
     parser.add_argument("--ckpt", required=True, help="Path to checkpoint .pt")
-    parser.add_argument("--data-root", default=None,
-                        help="Path to data root containing dataset folders (for file-based loading)")
-    parser.add_argument("--dataset", required=True,
-                        help="Dataset name (e.g., FB15k-237, WN18RR)")
-    parser.add_argument("--use-hf", action="store_true",
-                        help="Load from HuggingFace instead of local files")
-    parser.add_argument("--hf-name", default=None,
-                        help="HuggingFace dataset name (default: KGraph/<dataset>)")
+    parser.add_argument("--data-root", default=None, help="Path to data root containing dataset folders (for file-based loading)")
+    parser.add_argument("--dataset", required=True, help="Dataset name (e.g., FB15k-237, WN18RR)")
+    parser.add_argument("--use-hf", action="store_true", help="Load from HuggingFace instead of local files")
+    parser.add_argument("--hf-name", default=None, help="HuggingFace dataset name (default: KGraph/<dataset>)")
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--filtered", action="store_true",
-                        help="Use filtered evaluation")
+    parser.add_argument("--filtered", action="store_true", help="Use filtered evaluation")
     parser.add_argument("--device", default="auto")
-    parser.add_argument("--out", default=None,
-                        help="Path to save metrics as JSON")
+    parser.add_argument("--out", default=None, help="Path to save metrics as JSON")
     args = parser.parse_args()
 
     # Load triples and maps
     if args.use_hf:
         from dataset.utils import load_kg_hf
+
         hf_dataset_name = args.hf_name or f"KGraph/{args.dataset}"
         print(f"Loading dataset from HuggingFace: {hf_dataset_name}")
-        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg_hf(
-            hf_dataset_name)
+        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg_hf(hf_dataset_name)
     else:
         if args.data_root is None:
             raise ValueError("--data-root is required when not using --use-hf")
         print(f"Loading dataset from files: {args.data_root}/{args.dataset}")
-        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg(
-            args.data_root, args.dataset)
+        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg(args.data_root, args.dataset)
 
-    nentity = len(ent2id) if ent2id else int(max(train_ids[:, [0, 2]].max(
-    ), valid_ids[:, [0, 2]].max(), test_ids[:, [0, 2]].max())) + 1
-    nrelation = len(rel2id) if rel2id else int(
-        max(train_ids[:, 1].max(), valid_ids[:, 1].max(), test_ids[:, 1].max())) + 1
+    nentity = len(ent2id) if ent2id else int(max(train_ids[:, [0, 2]].max(), valid_ids[:, [0, 2]].max(), test_ids[:, [0, 2]].max())) + 1
+    nrelation = len(rel2id) if rel2id else int(max(train_ids[:, 1].max(), valid_ids[:, 1].max(), test_ids[:, 1].max())) + 1
 
     print(f"Dataset: {args.dataset}")
     print(f"  Entities: {nentity}")
@@ -64,8 +56,7 @@ def main():
     print()
 
     # Build KGIndex for filtering
-    all_true = KGIndex(torch.cat(
-        [train_ids, valid_ids, test_ids], dim=0).tolist(), nentity, nrelation)
+    all_true = KGIndex(torch.cat([train_ids, valid_ids, test_ids], dim=0).tolist(), nentity, nrelation)
 
     # Load checkpoint to infer model architecture
     print(f"Loading checkpoint: {args.ckpt}")
@@ -81,13 +72,11 @@ def main():
         print(f"  Entities: {model_config['nentity']}")
         print(f"  Relations: {model_config['nrelation']}")
         print(f"  Gamma: {model_config['gamma']}")
-        if model_config.get('med_enabled', False):
-            print(
-                f"  MED enabled with dimensions: {model_config.get('d_list', [])}")
-        base_dim = model_config['base_dim']
-        gamma = model_config['gamma']
-        med_d_list = model_config.get('d_list', None) if model_config.get(
-            'med_enabled', False) else None
+        if model_config.get("med_enabled", False):
+            print(f"  MED enabled with dimensions: {model_config.get('d_list', [])}")
+        base_dim = model_config["base_dim"]
+        gamma = model_config["gamma"]
+        med_d_list = model_config.get("d_list", None) if model_config.get("med_enabled", False) else None
     else:
         # Fallback: infer base_dim from checkpoint state_dict (old format)
         print("Warning: model_config not found in checkpoint (old format). Attempting to infer parameters...")
@@ -107,19 +96,16 @@ def main():
                     base_dim = emb_dim
                 print(f"Inferred base_dim from checkpoint: {base_dim}")
             else:
-                print(
-                    "Warning: Could not infer base_dim from checkpoint, using default=100")
+                print("Warning: Could not infer base_dim from checkpoint, using default=100")
                 base_dim = 100
         else:
-            print(
-                "Warning: Could not read checkpoint model state, using default base_dim=100")
+            print("Warning: Could not read checkpoint model state, using default base_dim=100")
             base_dim = 100
         gamma = 12.0  # Default gamma
         med_d_list = None  # Cannot infer MED settings from old checkpoints
 
     # Create model with correct sizes
-    model = create_model(args.model, nentity=nentity,
-                         nrelation=nrelation, base_dim=base_dim, gamma=gamma)
+    model = create_model(args.model, nentity=nentity, nrelation=nrelation, base_dim=base_dim, gamma=gamma)
     # load checkpoint
     load_checkpoint(args.ckpt, model)
 
@@ -133,8 +119,7 @@ def main():
     model.to(device)
 
     # build test loaders
-    dl_head, dl_tail = build_test_loaders(
-        test_ids, nentity, batch_size=args.batch_size, filtered=args.filtered, all_true=all_true)
+    dl_head, dl_tail = build_test_loaders(test_ids, nentity, batch_size=args.batch_size, filtered=args.filtered, all_true=all_true)
 
     # Check if model is MED-wrapped or if we have MED config from checkpoint
     is_med = med_d_list is not None
@@ -142,7 +127,7 @@ def main():
     if is_med:
         # MED model: evaluate each dimension separately
         print(f"MED model detected with dimensions: {med_d_list}")
-        print(f"Evaluating each dimension separately...\n")
+        print("Evaluating each dimension separately...\n")
 
         all_metrics = {}
         for dim in med_d_list:
@@ -150,8 +135,7 @@ def main():
             # Note: KGModel uses max_base_dim internally, and crops via forward(crop_dim=d)
             # We don't need to modify the model, just call forward with crop_dim parameter
 
-            metrics_dim = evaluate_model(
-                model, dl_head, dl_tail, device=device, crop_dim=dim)
+            metrics_dim = evaluate_model(model, dl_head, dl_tail, device=device, crop_dim=dim)
             all_metrics[f"dim_{dim}"] = metrics_dim
 
             print(f"Results for dim={dim}:")

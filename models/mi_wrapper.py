@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import torch
 import types
 from typing import Optional
+
+import torch
 
 from .mi import MI_Module
 

@@ -210,9 +210,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", type=str, required=True, help="Path to log.csv")
     ap.add_argument("--out", type=str, default="./plots", help="Output directory for images")
-    ap.add_argument(
-        "--smooth", type=float, default=0.9, help="EMA smoothing factor in [0,1). Higher=more smoothing; 0 disables."
-    )
+    ap.add_argument("--smooth", type=float, default=0.9, help="EMA smoothing factor in [0,1). Higher=more smoothing; 0 disables.")
     ap.add_argument("--dpi", type=int, default=140, help="Save resolution (DPI)")
     ap.add_argument("--show", action="store_true", help="Show plots interactively")
     args = ap.parse_args()

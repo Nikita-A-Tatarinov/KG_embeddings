@@ -1,9 +1,10 @@
 """Smoke test for KGC evaluator: tiny dataset and model."""
+
 import torch
 
-from models.transe import TransE
+from dataset.kg_dataset import KGIndex, build_test_loaders
 from eval.kgc_eval import evaluate_model
-from dataset.kg_dataset import build_test_loaders, KGIndex
+from models.transe import TransE
 
 
 def run():
@@ -14,16 +15,12 @@ def run():
     nentity = 4
     nrelation = 2
 
-    all_true = KGIndex(
-        torch.cat([train, valid, test], dim=0).tolist(), nentity, nrelation)
-    dl_head, dl_tail = build_test_loaders(
-        test, nentity, batch_size=2, filtered=True, all_true=all_true)
+    all_true = KGIndex(torch.cat([train, valid, test], dim=0).tolist(), nentity, nrelation)
+    dl_head, dl_tail = build_test_loaders(test, nentity, batch_size=2, filtered=True, all_true=all_true)
 
-    model = TransE(nentity=nentity, nrelation=nrelation,
-                   base_dim=10, gamma=12.0)
+    model = TransE(nentity=nentity, nrelation=nrelation, base_dim=10, gamma=12.0)
     # random init
-    metrics = evaluate_model(model, dl_head, dl_tail,
-                             device=torch.device("cpu"))
+    metrics = evaluate_model(model, dl_head, dl_tail, device=torch.device("cpu"))
     print("Evaluator smoke metrics:", metrics)
 
 

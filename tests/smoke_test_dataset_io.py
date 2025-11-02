@@ -70,9 +70,7 @@ def run(device=None):
             h, r, t = pos[i].tolist()
             if inv_r[r] == "r0" and inv_e[t] == "e1":
                 banned_heads = {e2id["e0"], e2id["e2"]}
-                assert not any(int(x) in banned_heads for x in neg[i].tolist()), (
-                    "Filtered head-batch produced banned head"
-                )
+                assert not any(int(x) in banned_heads for x in neg[i].tolist()), "Filtered head-batch produced banned head"
 
         # Tail-batch batch
         pos2, neg2, w2, mode2 = next(it)
@@ -83,9 +81,7 @@ def run(device=None):
             h, r, t = pos2[i].tolist()
             if inv_r[r] == "r1" and inv_e[h] == "e0":
                 banned_tails = {e2id["e2"]}
-                assert not any(int(x) in banned_tails for x in neg2[i].tolist()), (
-                    "Filtered tail-batch produced banned tail"
-                )
+                assert not any(int(x) in banned_tails for x in neg2[i].tolist()), "Filtered tail-batch produced banned tail"
 
         print("Train loaders (filtered negatives) ✓")
 

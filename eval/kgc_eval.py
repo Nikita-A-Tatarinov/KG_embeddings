@@ -1,10 +1,8 @@
 """KGC evaluation: filtered MRR and Hits@k utilities."""
+
 from __future__ import annotations
 
-from typing import Tuple
-
 import torch
-import torch.nn.functional as F
 
 
 def _score_batch(model, pos_batch: torch.LongTensor, cand_batch: torch.LongTensor, mode: str, device=None, crop_dim=None):
@@ -36,15 +34,12 @@ def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10), cro
     model.eval()
     device = device or next(model.parameters()).device
 
-    ranks = []  # list of ints (1-based)
-
     def _process_loader(dl, mode):
         local_ranks = []
         for pos, cands, _mode in dl:
             pos = pos.to(device)
             cands = cands.to(device)
-            scores = _score_batch(model, pos, cands, mode,
-                                  device=device, crop_dim=crop_dim)
+            scores = _score_batch(model, pos, cands, mode, device=device, crop_dim=crop_dim)
             # gold is at col 0
             # compute rank: higher score = better
             # rank = 1 + (number of scores > gold_score) + 0.5 * (number of scores == gold_score, excluding gold itself)
@@ -66,8 +61,7 @@ def evaluate_model(model, dl_head, dl_tail, device=None, hits_ks=(1, 3, 10), cro
     mrr = torch.mean(1.0 / ranks_tensor).item()
     out = {"mrr": mrr}
     for k in hits_ks:
-        out[f"hits@{k}"] = float((ranks_tensor <=
-                                 float(k)).float().mean().item())
+        out[f"hits@{k}"] = float((ranks_tensor <= float(k)).float().mean().item())
 
     out["n_examples"] = int(ranks_tensor.numel())
     out["n_head"] = len(ranks_head)

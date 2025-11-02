@@ -10,6 +10,7 @@ Tests the complete workflow:
 
 This test uses minimal sizes for fast CPU execution.
 """
+
 from __future__ import annotations
 
 import os
@@ -83,13 +84,11 @@ def run_end_to_end_test(device="cpu"):
 
         # Step 2: Load dataset
         print("\n=== Step 2: Loading dataset ===")
-        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg(
-            tmpdir, dataset_name)
+        train_ids, valid_ids, test_ids, ent2id, rel2id = load_kg(tmpdir, dataset_name)
         nentity = len(ent2id)
         nrelation = len(rel2id)
         print(f"Loaded: {nentity} entities, {nrelation} relations")
-        print(
-            f"Train: {len(train_ids)} triples, Valid: {len(valid_ids)}, Test: {len(test_ids)}")
+        print(f"Train: {len(train_ids)} triples, Valid: {len(valid_ids)}, Test: {len(test_ids)}")
 
         # Build KGIndex for filtered evaluation
         all_true = KGIndex(
@@ -103,8 +102,7 @@ def run_end_to_end_test(device="cpu"):
         model_name = "TransE"
         base_dim = 8  # Very small for fast CPU training
         gamma = 12.0
-        model = create_model(model_name, nentity=nentity,
-                             nrelation=nrelation, base_dim=base_dim, gamma=gamma)
+        model = create_model(model_name, nentity=nentity, nrelation=nrelation, base_dim=base_dim, gamma=gamma)
         model = model.to(device)
         print(f"Created {model_name} model with dim={base_dim}")
 
@@ -144,11 +142,8 @@ def run_end_to_end_test(device="cpu"):
             positive_score = model(pos)  # (B, 1)
 
             # Compute loss (OpenKE-style with logsigmoid)
-            positive_loss = - \
-                torch.nn.functional.logsigmoid(
-                    positive_score).squeeze(1).mean()
-            negative_loss = - \
-                torch.nn.functional.logsigmoid(-negative_score).mean()
+            positive_loss = -torch.nn.functional.logsigmoid(positive_score).squeeze(1).mean()
+            negative_loss = -torch.nn.functional.logsigmoid(-negative_score).mean()
 
             loss = (positive_loss + negative_loss) / 2.0
 
@@ -156,32 +151,26 @@ def run_end_to_end_test(device="cpu"):
             loss.backward()
             optimizer.step()
 
-            print(f"  Step {step+1}/3: loss={loss.item():.4f}, mode={mode}")
+            print(f"  Step {step + 1}/3: loss={loss.item():.4f}, mode={mode}")
 
         # Step 5: Evaluate before checkpoint
         print("\n=== Step 5: Evaluating model (before checkpoint) ===")
         model.eval()
-        test_dl_head, test_dl_tail = build_test_loaders(
-            test_ids, nentity, batch_size=2, filtered=True, all_true=all_true
-        )
-        metrics_before = evaluate_model(
-            model, test_dl_head, test_dl_tail, device=device)
-        print(
-            f"Metrics before checkpoint: MRR={metrics_before['mrr']:.4f}, Hits@1={metrics_before['hits@1']:.4f}")
+        test_dl_head, test_dl_tail = build_test_loaders(test_ids, nentity, batch_size=2, filtered=True, all_true=all_true)
+        metrics_before = evaluate_model(model, test_dl_head, test_dl_tail, device=device)
+        print(f"Metrics before checkpoint: MRR={metrics_before['mrr']:.4f}, Hits@1={metrics_before['hits@1']:.4f}")
 
         # Step 6: Save checkpoint
         print("\n=== Step 6: Saving checkpoint ===")
         ckpt_dir = os.path.join(tmpdir, "checkpoints")
         os.makedirs(ckpt_dir, exist_ok=True)
         trainer_state = {"step": 3, "epoch": 0}
-        ckpt_path = save_checkpoint(
-            ckpt_dir, "test", trainer_state, model, optimizer)
+        ckpt_path = save_checkpoint(ckpt_dir, "test", trainer_state, model, optimizer)
         print(f"Saved checkpoint to {ckpt_path}")
 
         # Step 7: Load checkpoint into new model
         print("\n=== Step 7: Loading checkpoint into new model ===")
-        model_new = create_model(
-            model_name, nentity=nentity, nrelation=nrelation, base_dim=base_dim, gamma=gamma)
+        model_new = create_model(model_name, nentity=nentity, nrelation=nrelation, base_dim=base_dim, gamma=gamma)
         model_new = model_new.to(device)
         loaded_state = load_checkpoint(ckpt_path, model_new)
         print(f"Loaded checkpoint: trainer_state={loaded_state}")
@@ -189,25 +178,23 @@ def run_end_to_end_test(device="cpu"):
         # Step 8: Evaluate after loading
         print("\n=== Step 8: Evaluating loaded model ===")
         model_new.eval()
-        metrics_after = evaluate_model(
-            model_new, test_dl_head, test_dl_tail, device=device)
-        print(
-            f"Metrics after loading: MRR={metrics_after['mrr']:.4f}, Hits@1={metrics_after['hits@1']:.4f}")
+        metrics_after = evaluate_model(model_new, test_dl_head, test_dl_tail, device=device)
+        print(f"Metrics after loading: MRR={metrics_after['mrr']:.4f}, Hits@1={metrics_after['hits@1']:.4f}")
 
         # Step 9: Verify metrics are identical
         print("\n=== Step 9: Verifying checkpoint integrity ===")
-        assert abs(metrics_before["mrr"] - metrics_after["mrr"]
-                   ) < 1e-6, "MRR mismatch after checkpoint load!"
-        assert abs(metrics_before["hits@1"] -
-                   metrics_after["hits@1"]) < 1e-6, "Hits@1 mismatch!"
+        assert abs(metrics_before["mrr"] - metrics_after["mrr"]) < 1e-6, "MRR mismatch after checkpoint load!"
+        assert abs(metrics_before["hits@1"] - metrics_after["hits@1"]) < 1e-6, "Hits@1 mismatch!"
         print("✓ Checkpoint save/load verified successfully")
 
         # Step 10: Test evaluate.py script compatibility
         print("\n=== Step 10: Verifying evaluate.py compatibility ===")
         # The evaluate.py script should work with our checkpoint format
-        print(f"✓ Checkpoint format compatible with evaluate.py")
-        print(f"  To evaluate: PYTHONPATH=. python3 evaluate.py --model {model_name} --ckpt {ckpt_path} "
-              f"--data-root {tmpdir} --dataset {dataset_name} --batch-size 2 --filtered")
+        print("✓ Checkpoint format compatible with evaluate.py")
+        print(
+            f"  To evaluate: PYTHONPATH=. python3 evaluate.py --model {model_name} --ckpt {ckpt_path} "
+            f"--data-root {tmpdir} --dataset {dataset_name} --batch-size 2 --filtered"
+        )
 
     print("\n" + "=" * 60)
     print("✅ END-TO-END TEST PASSED!")

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Quick test to verify KGC-aware dataset sampling works correctly."""
 
-import sys
 import torch
 
 # Test sampling utilities
@@ -29,20 +28,15 @@ def test_sample_by_ratio():
     print("=" * 60)
 
     train, valid, test, ent2id, rel2id = create_dummy_kg()
-    orig_ent_count = int(
-        max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
+    orig_ent_count = int(max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
 
-    print(
-        f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
+    print(f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
 
     train_s, valid_s, test_s, ent2id_s, rel2id_s, nent, nrel = sample_kg_dataset(
-        train, valid, test, ent2id, rel2id,
-        sample_ratio=0.1,
-        seed=42
+        train, valid, test, ent2id, rel2id, sample_ratio=0.1, seed=42
     )
 
-    print(
-        f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
+    print(f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
     print(f"Vocabulary: entities={nent}, relations={nrel}")
 
     # CRITICAL: Entity vocabulary should be PRESERVED (not remapped)
@@ -66,20 +60,15 @@ def test_sample_by_entities():
     print("=" * 60)
 
     train, valid, test, ent2id, rel2id = create_dummy_kg()
-    orig_ent_count = int(
-        max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
+    orig_ent_count = int(max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
 
-    print(
-        f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
+    print(f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
 
     train_s, valid_s, test_s, ent2id_s, rel2id_s, nent, nrel = sample_kg_dataset(
-        train, valid, test, ent2id, rel2id,
-        max_entities=100,
-        seed=42
+        train, valid, test, ent2id, rel2id, max_entities=100, seed=42
     )
 
-    print(
-        f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
+    print(f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
     print(f"Vocabulary: entities={nent}, relations={nrel}")
 
     # CRITICAL: Entity vocabulary should be PRESERVED
@@ -87,8 +76,7 @@ def test_sample_by_entities():
 
     # Training should only use ~100 entities
     train_ents = set(train_s[:, 0].tolist() + train_s[:, 2].tolist())
-    assert len(
-        train_ents) <= 110, f"Too many entities in training: {len(train_ents)}"
+    assert len(train_ents) <= 110, f"Too many entities in training: {len(train_ents)}"
 
     print("✓ Test passed! Entity vocabulary preserved.\n")
 
@@ -100,20 +88,15 @@ def test_sample_by_triples():
     print("=" * 60)
 
     train, valid, test, ent2id, rel2id = create_dummy_kg()
-    orig_ent_count = int(
-        max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
+    orig_ent_count = int(max(train[:, [0, 2]].max(), valid[:, [0, 2]].max(), test[:, [0, 2]].max())) + 1
 
-    print(
-        f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
+    print(f"Original: train={len(train)}, valid={len(valid)}, test={len(test)}, entities={orig_ent_count}")
 
     train_s, valid_s, test_s, ent2id_s, rel2id_s, nent, nrel = sample_kg_dataset(
-        train, valid, test, ent2id, rel2id,
-        max_triples=200,
-        seed=42
+        train, valid, test, ent2id, rel2id, max_triples=200, seed=42
     )
 
-    print(
-        f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
+    print(f"Sampled:  train={len(train_s)}, valid={len(valid_s)}, test={len(test_s)}")
     print(f"Vocabulary: entities={nent}, relations={nrel}")
 
     # CRITICAL: Entity vocabulary should be PRESERVED
@@ -139,8 +122,7 @@ def test_fb15k237_sampling():
             use_hf=True,
         )
 
-        print(
-            f"Full dataset: {meta_full['nentity']} entities, {meta_full['nrelation']} relations")
+        print(f"Full dataset: {meta_full['nentity']} entities, {meta_full['nrelation']} relations")
 
         # Load with 10% sampling
         print("\nLoading with 10% sampling...")
@@ -151,15 +133,14 @@ def test_fb15k237_sampling():
             sample_seed=42,
         )
 
-        print(f"\n✓ FB15k-237 KGC-aware sampling successful!")
-        print(
-            f"  Vocabulary size: {meta['nentity']} entities, {meta['nrelation']} relations")
+        print("\n✓ FB15k-237 KGC-aware sampling successful!")
+        print(f"  Vocabulary size: {meta['nentity']} entities, {meta['nrelation']} relations")
 
         # CRITICAL CHECK: Vocabulary should be PRESERVED
-        assert meta['nentity'] == meta_full['nentity'], "Entity vocabulary was remapped! This breaks KGC!"
-        assert meta['nrelation'] == meta_full['nrelation'], "Relation vocabulary was remapped!"
+        assert meta["nentity"] == meta_full["nentity"], "Entity vocabulary was remapped! This breaks KGC!"
+        assert meta["nrelation"] == meta_full["nrelation"], "Relation vocabulary was remapped!"
 
-        print(f"  ✓ Vocabulary preserved correctly (same as full dataset)")
+        print("  ✓ Vocabulary preserved correctly (same as full dataset)")
         print("✓ Test passed!\n")
 
     except Exception as e:

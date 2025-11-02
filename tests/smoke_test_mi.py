@@ -13,11 +13,14 @@ def test_mi_forward_backward():
     # sample batch using model sizes
     n_ent = 20
     n_rel = 6
-    sample = torch.stack([
-        torch.randint(0, n_ent, (4,)),
-        torch.randint(0, n_rel, (4,)),
-        torch.randint(0, n_ent, (4,)),
-    ], dim=1).long()
+    sample = torch.stack(
+        [
+            torch.randint(0, n_ent, (4,)),
+            torch.randint(0, n_rel, (4,)),
+            torch.randint(0, n_ent, (4,)),
+        ],
+        dim=1,
+    ).long()
     # compute mi loss
     loss = model.compute_mi_loss(sample, neg_size=4)
     assert torch.isfinite(loss)

@@ -1,0 +1,43 @@
+seed: 42
+device: auto
+
+dataset:
+  name: WN18RR
+  source: hf
+  hf_name: VLyb/WN18RR
+  filtered_eval: true
+data:
+  neg_size: 64
+  train_bs: 1024
+  test_bs: 128
+  num_workers: 4
+
+model:
+  name: RotatE
+  base_dim: 512
+  gamma: 12.0
+
+med:
+  enabled: true
+  dims: [128, 256, 512]
+  submodels_per_step: 3
+
+optim:
+  name: Adam
+  lr: 0.0005
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  grad_clip: 1.0
+
+sched:
+  name: linear
+  warmup_steps: 1000
+  total_steps: 0
+
+train:
+  epochs: 100
+  log_every: 100
+  eval_every: 5000
+  save_every: 10000
+  out_dir: ./workdir/runs/wn18rr/rotate/med
+  save_best_metric: MRR

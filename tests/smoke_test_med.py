@@ -53,9 +53,7 @@ def run_smoke(device=None):
         if name.lower() == "pairre":
             extra["nonneg"] = True
 
-        model = create_model(
-            name, nentity=n_ent, nrelation=n_rel, base_dim=base_dim, gamma=12.0, evaluator=None, **extra
-        ).to(device)
+        model = create_model(name, nentity=n_ent, nrelation=n_rel, base_dim=base_dim, gamma=12.0, evaluator=None, **extra).to(device)
 
         # Filter dims if this model has special constraints (handled inside MEDTrainer)
         med = MEDTrainer(model, d_list=dims, submodels_per_step=3).to(device)

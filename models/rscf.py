@@ -76,8 +76,15 @@ class RSCFModule(nn.Module):
         t_n = self._normalize(t_feat)
         return (h_n + 1.0) * (t_n + 1.0) * r
 
-    def forward(self, head: torch.Tensor, relation: torch.Tensor, tail: torch.Tensor, *,
-                apply_et: bool = True, apply_rt: bool = True):
+    def forward(
+        self,
+        head: torch.Tensor,
+        relation: torch.Tensor,
+        tail: torch.Tensor,
+        *,
+        apply_et: bool = True,
+        apply_rt: bool = True,
+    ):
         """
         Convenience forward that returns transformed (h_r, r_ht, t_r).
         Shapes are the same as inputs.

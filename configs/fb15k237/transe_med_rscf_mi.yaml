@@ -31,7 +31,7 @@ data:
 
 model:
   name: TransE
-  base_dim: 80
+  base_dim: 512
   gamma: 12.0
   use_rscf: true
   rscf_alpha: 0.1
@@ -40,7 +40,7 @@ model:
 
 med:
   enabled: true
-  dims: [10, 20, 40, 80]
+  dims: [128, 256, 512]
   submodels_per_step: 3
 
 optim:
