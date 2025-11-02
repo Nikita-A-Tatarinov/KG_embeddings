@@ -24,7 +24,7 @@ packages = ["kg_embeddings", "med", "models", "dataset", "runner"]
 [tool.ruff]
 # Note: While the formatter will attempt to format lines such that they remain within the line-length,
 # it isn't a hard upper bound, and formatted lines may exceed the line-length.
-line-length = 120
+line-length = 140
 exclude = ["tests/workers/rollout/test_sglang_async_rollout_sf_tools.py", "scripts/legacy_model_merger.py"]
 
 [tool.ruff.lint]

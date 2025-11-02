@@ -3,7 +3,6 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
 
 
 class SimpleCritic(nn.Module):
@@ -60,9 +59,10 @@ class MI_Module(nn.Module):
 
         # compute scores: positive and negatives
         pos_score = self.critic(q_z, pos_z) / temperature  # (B,)
-        neg_score = self.critic(
-            q_z.unsqueeze(1).expand(-1, neg_z.size(1), -1).reshape(-1, q_z.size(-1)), neg_z.view(-1, neg_z.size(-1))
-        ) / temperature
+        neg_score = (
+            self.critic(q_z.unsqueeze(1).expand(-1, neg_z.size(1), -1).reshape(-1, q_z.size(-1)), neg_z.view(-1, neg_z.size(-1)))
+            / temperature
+        )
         neg_score = neg_score.view(B, -1)  # (B, N)
 
         denom = torch.cat([pos_score.unsqueeze(1), neg_score], dim=1)  # (B, N+1)

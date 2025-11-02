@@ -4,6 +4,7 @@ IMPORTANT: For Knowledge Graph Completion (KGC), we must maintain the full entit
 space to ensure valid evaluation. We sample TRIPLES, not entities, and filter evaluation
 to only test triples whose entities appear in the training set.
 """
+
 from __future__ import annotations
 
 import random
@@ -56,13 +57,8 @@ def sample_kg_dataset(
     torch.manual_seed(seed)
 
     # Original vocabulary sizes (NEVER CHANGE THESE)
-    nentity = len(ent2id) if ent2id else int(max(
-        train_ids[:, [0, 2]].max(), valid_ids[:, [0, 2]
-                                              ].max(), test_ids[:, [0, 2]].max()
-    )) + 1
-    nrelation = len(rel2id) if rel2id else int(max(
-        train_ids[:, 1].max(), valid_ids[:, 1].max(), test_ids[:, 1].max()
-    )) + 1
+    nentity = len(ent2id) if ent2id else int(max(train_ids[:, [0, 2]].max(), valid_ids[:, [0, 2]].max(), test_ids[:, [0, 2]].max())) + 1
+    nrelation = len(rel2id) if rel2id else int(max(train_ids[:, 1].max(), valid_ids[:, 1].max(), test_ids[:, 1].max())) + 1
 
     if sample_ratio is not None:
         return _sample_by_ratio_kgc(train_ids, valid_ids, test_ids, ent2id, rel2id, nentity, nrelation, sample_ratio)
@@ -89,28 +85,21 @@ def _sample_by_ratio_kgc(train_ids, valid_ids, test_ids, ent2id, rel2id, nentity
     train_sampled = train_ids[train_idx]
 
     # Get entities that appear in sampled training
-    train_entities = set(
-        train_sampled[:, 0].tolist() + train_sampled[:, 2].tolist())
+    train_entities = set(train_sampled[:, 0].tolist() + train_sampled[:, 2].tolist())
 
-    print(
-        f"  Training entities coverage: {len(train_entities)}/{nentity} ({100*len(train_entities)/nentity:.1f}%)")
+    print(f"  Training entities coverage: {len(train_entities)}/{nentity} ({100 * len(train_entities) / nentity:.1f}%)")
 
     # Filter valid/test to only include triples with entities seen in training
     # (Model can only predict for entities it has learned embeddings for)
     def _filter_to_train_entities(triples):
-        mask = torch.tensor([
-            (int(h) in train_entities and int(t) in train_entities)
-            for h, r, t in triples.tolist()
-        ], dtype=torch.bool)
+        mask = torch.tensor([(int(h) in train_entities and int(t) in train_entities) for h, r, t in triples.tolist()], dtype=torch.bool)
         return triples[mask]
 
     valid_sampled = _filter_to_train_entities(valid_ids)
     test_sampled = _filter_to_train_entities(test_ids)
 
-    print(
-        f"  Valid: {len(valid_ids)} -> {len(valid_sampled)} triples (filtered to training entities)")
-    print(
-        f"  Test: {len(test_ids)} -> {len(test_sampled)} triples (filtered to training entities)")
+    print(f"  Valid: {len(valid_ids)} -> {len(valid_sampled)} triples (filtered to training entities)")
+    print(f"  Test: {len(test_ids)} -> {len(test_sampled)} triples (filtered to training entities)")
 
     # Return with ORIGINAL vocabulary size (critical for KGC)
     return train_sampled, valid_sampled, test_sampled, ent2id, rel2id, nentity, nrelation
@@ -128,8 +117,7 @@ def _sample_by_entities_kgc(train_ids, valid_ids, test_ids, ent2id, rel2id, nent
         entity_degrees[t] = entity_degrees.get(t, 0) + 1
 
     # Select top-K most connected entities
-    sorted_entities = sorted(entity_degrees.items(),
-                             key=lambda x: x[1], reverse=True)
+    sorted_entities = sorted(entity_degrees.items(), key=lambda x: x[1], reverse=True)
     if len(sorted_entities) <= max_entities:
         # Already small enough, keep everything
         return train_ids, valid_ids, test_ids, ent2id, rel2id, nentity, nrelation
@@ -137,14 +125,16 @@ def _sample_by_entities_kgc(train_ids, valid_ids, test_ids, ent2id, rel2id, nent
     sampled_entities = set([ent for ent, _ in sorted_entities[:max_entities]])
 
     print(
-        f"  Selected top {len(sampled_entities)} most connected entities (avg degree: {sum([deg for _, deg in sorted_entities[:max_entities]])/len(sampled_entities):.1f})")
+        f"  Selected top {len(sampled_entities)} most connected entities \
+            (avg degree: {sum([deg for _, deg in sorted_entities[:max_entities]]) / len(sampled_entities):.1f})"
+    )
 
     # Filter triples to sampled entities
     def _filter_triples(triples):
-        mask = torch.tensor([
-            (int(h) in sampled_entities and int(t) in sampled_entities)
-            for h, r, t in triples.tolist()
-        ], dtype=torch.bool)
+        mask = torch.tensor(
+            [(int(h) in sampled_entities and int(t) in sampled_entities) for h, r, t in triples.tolist()],
+            dtype=torch.bool,
+        )
         return triples[mask]
 
     train_sampled = _filter_triples(train_ids)
@@ -173,19 +163,14 @@ def _sample_by_triples_kgc(train_ids, valid_ids, test_ids, ent2id, rel2id, nenti
     train_sampled = train_ids[train_idx]
 
     # Get entities in sampled training
-    train_entities = set(
-        train_sampled[:, 0].tolist() + train_sampled[:, 2].tolist())
+    train_entities = set(train_sampled[:, 0].tolist() + train_sampled[:, 2].tolist())
 
     print(f"  Sampled {len(train_sampled)} training triples")
-    print(
-        f"  Training entities coverage: {len(train_entities)}/{nentity} ({100*len(train_entities)/nentity:.1f}%)")
+    print(f"  Training entities coverage: {len(train_entities)}/{nentity} ({100 * len(train_entities) / nentity:.1f}%)")
 
     # Filter valid/test to training entities
     def _filter_to_train_entities(triples):
-        mask = torch.tensor([
-            (int(h) in train_entities and int(t) in train_entities)
-            for h, r, t in triples.tolist()
-        ], dtype=torch.bool)
+        mask = torch.tensor([(int(h) in train_entities and int(t) in train_entities) for h, r, t in triples.tolist()], dtype=torch.bool)
         return triples[mask]
 
     valid_sampled = _filter_to_train_entities(valid_ids)

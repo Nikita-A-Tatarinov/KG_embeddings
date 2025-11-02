@@ -40,6 +40,7 @@ class KGModel(nn.Module):
         init: str = "uniform",
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None,
+        **kwargs,
     ):
         super().__init__()
         self.nentity = nentity

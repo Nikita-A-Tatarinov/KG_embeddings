@@ -70,23 +70,15 @@ class MEDTrainer(nn.Module):
         return torch.where(ax <= delta, 0.5 * ax * ax, delta * (ax - 0.5 * delta))
 
     def _pick_indices(self):
-        """Select dimension indices for this training step.
-
-        IMPLEMENTATION DECISION:
-        Paper uses "uniformly sampled sub-models" with n=64 to reduce compute.
-        However, random sampling causes severe loss instability when switching
-        between dimension subsets (e.g., [10,20,40] -> [20,40,80]) because:
-        1. Different subsets have different total alpha weights
-        2. Larger dimensions appear in some subsets but not others
-        3. When a large untrained dimension suddenly appears, loss spikes
-
-        For small n (like our n=4), we train ALL dimensions for stability.
-        For large n (like paper's n=64), they accept some instability for efficiency.
-        """
-        # With only 4 dimensions, train all for stability
-        # (Paper uses sampling only for n=64 to reduce compute cost)
-        # ----- forward: compute MED loss -----
-        return list(range(len(self.d_list)))
+        n = len(self.d_list)
+        m = min(self.submodels_per_step, n)
+        if n == m:
+            return list(range(n))
+        j = random.randrange(n)
+        left = max(0, j - m // 2)
+        right = min(n, left + m)
+        left = max(0, right - m)
+        return list(range(left, right))
 
     def forward(self, pos_triples: torch.LongTensor, neg_candidates: torch.LongTensor, mode: str):
         """
@@ -110,21 +102,17 @@ class MEDTrainer(nn.Module):
         s_neg = {}  # d -> (B*K,)
         for d in dims:
             # positive logits (single mode)
-            s_p = self.model(pos_triples, mode="single",
-                             crop_dim=d).squeeze(1)  # (B,)
+            s_p = self.model(pos_triples, mode="single", crop_dim=d).squeeze(1)  # (B,)
             # negative logits (batch mode)
-            s_n = self.model((pos_triples, neg_candidates),
-                             mode=mode, crop_dim=d)  # (B,K)
+            s_n = self.model((pos_triples, neg_candidates), mode=mode, crop_dim=d)  # (B,K)
             s_pos[d] = s_p
             s_neg[d] = s_n.reshape(B * K)
 
         # --- Mutual Learning (neighbor Huber on logits) ---
         L_ml = 0.0
         for a, b in zip(dims[:-1], dims[1:], strict=True):
-            L_ml = L_ml + \
-                self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
-            L_ml = L_ml + \
-                self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
+            L_ml = L_ml + self._huber(s_pos[a] - s_pos[b], self.huber_delta).mean()
+            L_ml = L_ml + self._huber(s_neg[a] - s_neg[b], self.huber_delta).mean()
 
         # --- Evolutionary Improvement (weighted BCE) ---
         L_ei = 0.0
@@ -135,8 +123,7 @@ class MEDTrainer(nn.Module):
             if k == 0:
                 # uniform weights
                 w_pos = torch.full((B,), 1.0 / B, device=device, dtype=dtype)
-                w_neg = torch.full((B * K,), 1.0 / (B * K),
-                                   device=device, dtype=dtype)
+                w_neg = torch.full((B * K,), 1.0 / (B * K), device=device, dtype=dtype)
             else:
                 prev = dims[k - 1]
                 # IMPORTANT: stop grad to previous sub-model logits, but keep w1/w2 learnable
@@ -146,10 +133,8 @@ class MEDTrainer(nn.Module):
                 w_neg = F.softmax(+self.w2 * s_neg[prev].detach(), dim=0)
 
             # Per-example BCE (no 'weight=' arg) so we can multiply by our soft weights
-            bce_pos = F.binary_cross_entropy_with_logits(
-                s_pos[d], ones_pos, reduction="none")  # (B,)
-            bce_neg = F.binary_cross_entropy_with_logits(
-                s_neg[d], zeros_neg, reduction="none")  # (B*K,)
+            bce_pos = F.binary_cross_entropy_with_logits(s_pos[d], ones_pos, reduction="none")  # (B,)
+            bce_neg = F.binary_cross_entropy_with_logits(s_neg[d], zeros_neg, reduction="none")  # (B*K,)
 
             # Weighted means (normalize by sum of weights)
             L_pos = (w_pos * bce_pos).sum() / (w_pos.sum() + 1e-12)
@@ -157,8 +142,7 @@ class MEDTrainer(nn.Module):
 
             # Dynamic Loss Weight
             d_ratio = d / float(self.d_max)
-            alpha = torch.sigmoid(
-                self.w3 * torch.tensor(d_ratio - 0.5, device=device, dtype=dtype))
+            alpha = torch.exp(self.w3 * torch.tensor(d_ratio, device=device, dtype=dtype))
             L_ei = L_ei + alpha * (L_pos + L_neg)
 
         loss = L_ei + L_ml
@@ -167,8 +151,7 @@ class MEDTrainer(nn.Module):
         if self.mi_lambda and hasattr(self.model, "compute_mi_loss"):
             try:
                 # pos_triples is (B,3) LongTensor
-                mi_loss = self.model.compute_mi_loss(
-                    pos_triples, neg_size=self.mi_neg_size)
+                mi_loss = self.model.compute_mi_loss(pos_triples, neg_size=self.mi_neg_size)
                 # ensure scalar
                 if torch.is_tensor(mi_loss):
                     mi_loss_val = float(mi_loss.detach())
