@@ -12,7 +12,7 @@ from models import create_model
 from runner.checkpoint import save_checkpoint
 from runner.logger import CSVLogger, Timer
 from runner.optim import build_optimizer, build_scheduler
-
+from types import SimpleNamespace
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -130,6 +130,8 @@ def evaluate(model, loaders) -> dict[str, float]:
                 equal = (logits == gold).sum(dim=1).float() - 1.0
                 r = 1.0 + greater + 0.5 * equal
                 ranks.append(r.cpu())
+                # Free GPU memory to prevent fragmentation with large dimensions
+                del logits, gold, greater, equal, r
             if not ranks:
                 return {"MR": float("nan"), "MRR": float("nan"), "H@1": 0.0, "H@3": 0.0, "H@10": 0.0}
             ranks = torch.cat(ranks, dim=0)
@@ -150,6 +152,9 @@ def evaluate(model, loaders) -> dict[str, float]:
                 best_mrr = metrics["MRR"]
                 best_metrics = metrics
             all_metrics[f"dim_{d}"] = metrics
+            # Clear cache after each dimension to prevent fragmentation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         return best_metrics, all_metrics
 
@@ -170,6 +175,8 @@ def evaluate(model, loaders) -> dict[str, float]:
             equal = (logits == gold).sum(dim=1).float() - 1.0  # subtract 1 for gold itself
             r = 1.0 + greater + 0.5 * equal
             ranks.append(r.cpu())
+            # Free GPU memory to prevent fragmentation
+            del logits, gold, greater, equal, r
         if not ranks:
             return {"MR": float("nan"), "MRR": float("nan"), "H@1": 0.0, "H@3": 0.0, "H@10": 0.0}
         ranks = torch.cat(ranks, dim=0)
@@ -237,7 +244,9 @@ class Trainer:
             try:
                 from models.rscf_wrapper import attach_rscf
 
-                attach_rscf(model, use_et=getattr(cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
+                rscf_module = attach_rscf(model, use_et=getattr(cfg.model, "rscf_et", True), use_rt=getattr(cfg.model, "rscf_rt", True))
+                # Move RSCF module to the same device as the model
+                rscf_module.to(self.device)
             except Exception as exc:  # pragma: no cover - best-effort
                 print(f"Warning: failed to attach RSCF: {exc}")
 
@@ -250,7 +259,9 @@ class Trainer:
                 mi_q_dim = getattr(cfg.model, "mi_q_dim", None)
                 mi_use_info_nce = bool(getattr(cfg.model, "mi_use_info_nce", True))
                 mi_use_jsd = bool(getattr(cfg.model, "mi_use_jsd", False))
-                attach_mi(model, q_dim=mi_q_dim, use_info_nce=mi_use_info_nce, use_jsd=mi_use_jsd)
+                mi_module = attach_mi(model, q_dim=mi_q_dim, use_info_nce=mi_use_info_nce, use_jsd=mi_use_jsd)
+                # Move MI module to the same device as the model
+                mi_module.to(self.device)
             except Exception as exc:  # pragma: no cover - best-effort
                 print(f"Warning: failed to attach MI module: {exc}")
 
@@ -403,6 +414,25 @@ class Trainer:
                     if grad_clip > 0:
                         torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
                     self.optimizer.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+                else:
+                    cuda_flag = True if (isinstance(
+                        self.device, str) and self.device.startswith("cuda")) else False
+                    loss_stats = self.train_obj.train_step(
+                        self.train_obj,
+                        self.optimizer,
+                        iter([(pos, neg, w, mode)]),
+                        SimpleNamespace(
+                            cuda=cuda_flag,
+                            negative_adversarial_sampling=False,
+                            uni_weight=True,
+                            regularization=0.0,
+                        ),
+                    )
+                    loss = torch.tensor(
+                        loss_stats["loss"], device=self.device)
+                    stats = {"L_total": float(loss.detach())}
                     if self.scheduler is not None:
                         self.scheduler.step()
 
