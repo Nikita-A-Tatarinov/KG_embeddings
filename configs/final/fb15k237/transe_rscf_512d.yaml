@@ -2,9 +2,9 @@ seed: 42
 device: auto
 
 dataset:
-  name: WN18RR
+  name: FB15k-237
   source: hf
-  hf_name: VLyb/WN18RR
+  hf_name: KGraph/FB15k-237
   filtered_eval: true
 
 data:
@@ -15,10 +15,8 @@ data:
 
 model:
   name: TransE
-  base_dim: 256
+  base_dim: 512
   gamma: 12.0
-  use_mi: true
-  mi_lambda: 0.01
   use_rscf: true
   rscf_alpha: 0.1
 
@@ -42,5 +40,5 @@ train:
   log_every: 100
   eval_every: 100000
   save_every: 10000
-  out_dir: ./workdir/runs/final/wn18rr/transe/mi_rscf_256d
+  out_dir: ./workdir/runs/final/fb15k237/transe/rscf_512d
   save_best_metric: MRR

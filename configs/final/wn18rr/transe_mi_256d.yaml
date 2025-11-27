@@ -38,7 +38,7 @@ sched:
 train:
   epochs: 100
   log_every: 100
-  eval_every: 10000
+  eval_every: 100000
   save_every: 10000
   out_dir: ./workdir/runs/final/wn18rr/transe/mi_256d
   save_best_metric: MRR
