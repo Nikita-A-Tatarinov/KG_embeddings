@@ -5,15 +5,30 @@ from .pairre import PairRE as PairRE
 from .registry import (
     create_model as create_model,
 )
-from .registry import (
-    get_model_class as get_model_class,
+from .registry import create_model, list_models, register_model
+
+# models/__init__.py
+from .kg_model import KGModel
+from .transe import TransE
+from .distmult import DistMult
+from .complex_ import ComplEx
+from .rotate import RotatE
+from .rotatev2 import RotatEv2
+from .pairre import PairRE
+from .transh import TransH
+
+# Wrappers
+from .rscf import RSCFModule
+from .mi import MI_Module
+
+from .compgcn_cp import (
+    CompGCN_TransE, 
+    CompGCN_DistMult, 
+    CompGCN_RotatE, 
+    CompGCN_ComplEx, 
+    CompGCN_PairRE
 )
-from .registry import (
-    list_models as list_models,
-)
-from .registry import (
-    register_model as register_model,
-)
+
 from .rotate import RotatE as RotatE
 from .rotatev2 import RotatEv2 as RotatEv2
 
@@ -27,7 +42,6 @@ __all__ = [
     "get_model_class",
     "list_models",
     "register_model",
-    # model classes (optional; handy for type hints / direct imports)
     "TransE",
     "DistMult",
     "ComplEx",
@@ -35,4 +49,11 @@ __all__ = [
     "RotatEv2",
     "PairRE",
     "TransH",
+    "RSCFModule",
+    "MI_Module",
+    "CompGCN_TransE",
+    "CompGCN_DistMult",
+    "CompGCN_RotatE",
+    "CompGCN_ComplEx",
+    "CompGCN_PairRE"
 ]
