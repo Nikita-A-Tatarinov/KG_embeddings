@@ -3,6 +3,7 @@
 .vscode/
 
 data/
+data
 
 *.csv
 *.pth
