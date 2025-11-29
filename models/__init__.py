@@ -1,36 +1,29 @@
 # models/__init__.py
 from .complex_ import ComplEx as ComplEx
+from .context_pooling import ContextPooling
 from .distmult import DistMult as DistMult
+
+# models/__init__.py
+from .kg_model import KGModel
+from .mi import MI_Module
 from .pairre import PairRE as PairRE
 from .registry import (
     create_model as create_model,
 )
-from .registry import create_model, list_models, register_model
-
-# models/__init__.py
-from .kg_model import KGModel
-from .transe import TransE
-from .distmult import DistMult
-from .complex_ import ComplEx
+from .registry import list_models, register_model
 from .rotate import RotatE
 from .rotatev2 import RotatEv2
-from .pairre import PairRE
-from .transh import TransH
-from .context_pooling import ContextPooling
 
 # Wrappers
 from .rscf import RSCFModule
-from .mi import MI_Module
-
-from .rotate import RotatE as RotatE
-from .rotatev2 import RotatEv2 as RotatEv2
+from .transe import TransE
+from .transh import TransH
 
 # Import modules to trigger @register_model side-effects and optionally re-export classes
-from .transe import TransE as TransE
-from .transh import TransH as TransH
 
 __all__ = [
     # registry API
+    "KGModel",
     "create_model",
     "get_model_class",
     "list_models",
@@ -44,5 +37,5 @@ __all__ = [
     "TransH",
     "RSCFModule",
     "MI_Module",
-    "ContextPooling"
+    "ContextPooling",
 ]

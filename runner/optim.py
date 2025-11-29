@@ -52,10 +52,10 @@ def build_scheduler(optimizer, cfg, total_steps: int):
         warm = int(cfg.sched.warmup_steps)
         tot = int(cfg.sched.total_steps) or int(total_steps)
         return LinearWarmupDecay(optimizer, warm, tot)
-    
+
     elif name == "exponential":
-        gamma = float(getattr(cfg.sched, "gamma", 0.99)) 
+        gamma = float(getattr(cfg.sched, "gamma", 0.99))
         return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
-    
+
     else:
         raise ValueError(f"Unknown scheduler: {cfg.sched.name}")

@@ -1,19 +1,20 @@
 # runner/trainer.py
 from __future__ import annotations
 
+import os
 import random
 import time
-import os
+from types import SimpleNamespace
 
 import torch
 import torch.nn.functional as F
 
 from med.med_wrapper import MEDTrainer
 from models import create_model
-from runner.checkpoint import save_checkpoint, load_checkpoint
+from runner.checkpoint import load_checkpoint, save_checkpoint
 from runner.logger import CSVLogger, Timer
 from runner.optim import build_optimizer, build_scheduler
-from types import SimpleNamespace
+
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -236,7 +237,7 @@ class Trainer:
         if cfg.model.name.lower() in ["cp", "contextpooling"]:
             # Extract raw triples from the dataset for graph construction
             train_triples = self.train_iter._src_head.dataset.triples
-            model_ctor_kwargs['train_triples'] = train_triples
+            model_ctor_kwargs["train_triples"] = train_triples
         # ===================================
 
         model = create_model(
@@ -346,14 +347,17 @@ class Trainer:
                 self.global_step = state.get("step", 0)
                 # The checkpoint saves the 'completed' epoch, so we start from the next one
                 self.start_epoch = state.get("epoch", 0) + 1
-                
+
                 # Try to restore best_metric
                 metrics = state.get("metrics", {})
                 metric_key = getattr(self.cfg.train, "save_best_metric", "MRR")
                 if metric_key in metrics:
                     self.best_metric = float(metrics[metric_key])
-                
-                print(f"Resumed successfully. Global Step: {self.global_step}, Next Epoch: {self.start_epoch}, Best {metric_key}: {self.best_metric:.4f}")
+
+                print(
+                    f"Resumed successfully. Global Step: {self.global_step}, \
+                        Next Epoch: {self.start_epoch}, Best {metric_key}: {self.best_metric:.4f}"
+                )
             except Exception as e:
                 print(f"Warning: Failed to resume from checkpoint: {e}")
                 print("Starting training from scratch.")
@@ -450,8 +454,7 @@ class Trainer:
                     if self.scheduler is not None:
                         self.scheduler.step()
                 else:
-                    cuda_flag = True if (isinstance(
-                        self.device, str) and self.device.startswith("cuda")) else False
+                    cuda_flag = True if (isinstance(self.device, str) and self.device.startswith("cuda")) else False
                     loss_stats = self.train_obj.train_step(
                         self.train_obj,
                         self.optimizer,
@@ -463,8 +466,7 @@ class Trainer:
                             regularization=0.0,
                         ),
                     )
-                    loss = torch.tensor(
-                        loss_stats["loss"], device=self.device)
+                    loss = torch.tensor(loss_stats["loss"], device=self.device)
                     stats = {"L_total": float(loss.detach())}
                     if self.scheduler is not None:
                         self.scheduler.step()
