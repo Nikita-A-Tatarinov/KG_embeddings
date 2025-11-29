@@ -11,6 +11,8 @@ ln -s ~/scratch/KG_embeddings/workdir workdir
 
 uv venv --python 3.12 --seed ~/scratch/KG_embeddings/.venv
 ln -s ~/scratch/KG_embeddings/.venv .venv
+# for context pooling implementation
+uv pip install torch-scatter -f https://data.pyg.org/whl/torch-2.8.0+cu129.html
 source .venv/bin/activate
 uv sync
 ```

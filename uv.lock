@@ -623,6 +623,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "datasets" },
     { name = "matplotlib" },
+    { name = "networkx" },
     { name = "pyyaml" },
     { name = "torch" },
 ]
@@ -637,8 +638,9 @@ dev = [
 requires-dist = [
     { name = "datasets", specifier = ">=4.3.0" },
     { name = "matplotlib", specifier = ">=3.10.7" },
+    { name = "networkx", specifier = ">=3.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "torch", specifier = ">=2.9.0" },
+    { name = "torch", specifier = ">=2.8.0" },
 ]
 
 [package.metadata.requires-dev]

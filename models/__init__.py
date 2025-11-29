@@ -16,18 +16,11 @@ from .rotate import RotatE
 from .rotatev2 import RotatEv2
 from .pairre import PairRE
 from .transh import TransH
+from .context_pooling import ContextPooling
 
 # Wrappers
 from .rscf import RSCFModule
 from .mi import MI_Module
-
-from .compgcn_cp import (
-    CompGCN_TransE, 
-    CompGCN_DistMult, 
-    CompGCN_RotatE, 
-    CompGCN_ComplEx, 
-    CompGCN_PairRE
-)
 
 from .rotate import RotatE as RotatE
 from .rotatev2 import RotatEv2 as RotatEv2
@@ -51,9 +44,5 @@ __all__ = [
     "TransH",
     "RSCFModule",
     "MI_Module",
-    "CompGCN_TransE",
-    "CompGCN_DistMult",
-    "CompGCN_RotatE",
-    "CompGCN_ComplEx",
-    "CompGCN_PairRE"
+    "ContextPooling"
 ]
