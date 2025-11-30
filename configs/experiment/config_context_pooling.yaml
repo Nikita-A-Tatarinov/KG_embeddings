@@ -9,8 +9,8 @@ dataset:
 
 data:
   neg_size: 1024
-  train_bs: 32  
-  test_bs: 32
+  train_bs: 64  
+  test_bs: 64
   num_workers: 4
 
 model:
@@ -48,5 +48,5 @@ train:
   log_every: 100
   eval_every: 10000
   save_every: 5000
-  out_dir: ./workdir/runs/wn18rr/cp/d80
+  out_dir: ./workdir/runs/wn18rr/cp/d64
   save_best_metric: MRR

@@ -442,8 +442,6 @@ class Trainer:
                     if grad_clip > 0:
                         torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
                     self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
 
                 if self.cfg.med.enabled:
                     loss, stats = self.train_obj(pos, neg, mode=mode)
@@ -451,8 +449,6 @@ class Trainer:
                     if grad_clip > 0:
                         torch.nn.utils.clip_grad_norm_(self.train_obj.parameters(), grad_clip)
                     self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
                 else:
                     cuda_flag = True if (isinstance(self.device, str) and self.device.startswith("cuda")) else False
                     loss_stats = self.train_obj.train_step(
@@ -468,8 +464,6 @@ class Trainer:
                     )
                     loss = torch.tensor(loss_stats["loss"], device=self.device)
                     stats = {"L_total": float(loss.detach())}
-                    if self.scheduler is not None:
-                        self.scheduler.step()
 
                 # ---- logging ----
                 if self.global_step % log_every == 0:
@@ -547,6 +541,8 @@ class Trainer:
                         model_config=self.model_config,
                     )
 
+            if self.scheduler is not None:
+                self.scheduler.step()
             # end epoch
 
         # Save final checkpoint

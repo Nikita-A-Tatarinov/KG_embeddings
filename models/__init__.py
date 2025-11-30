@@ -25,6 +25,7 @@ __all__ = [
     # registry API
     "KGModel",
     "create_model",
+    "KGModel",
     "get_model_class",
     "list_models",
     "register_model",
