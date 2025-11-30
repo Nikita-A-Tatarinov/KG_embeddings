@@ -312,6 +312,10 @@ class ContextPooling(KGModel):
         data_path=None,
         accuracy_threshold=0.4,
         recall_threshold=0.1,
+        accuracy_graph=True,
+        recall_graph=True,
+        accuracy_graph_complement=True,
+        recall_graph_complement=True,
         **kwargs,
     ):
         super().__init__(nentity, nrelation, base_dim, gamma, **kwargs)
@@ -324,6 +328,11 @@ class ContextPooling(KGModel):
         activations = {"relu": nn.ReLU(), "tanh": torch.tanh, "idd": lambda x: x}
         self.act = activations.get(act, nn.ReLU())
 
+        self.use_acc = accuracy_graph
+        self.use_rec = recall_graph
+        self.use_acc_c = accuracy_graph_complement
+        self.use_rec_c = recall_graph_complement
+
         if train_triples is not None:
             self._init_graph(train_triples, accuracy_threshold, recall_threshold)
         elif data_path is not None:
@@ -332,20 +341,37 @@ class ContextPooling(KGModel):
         self.gnn_layers = nn.ModuleList(
             [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
         )
-        self.acc_layers = nn.ModuleList(
-            [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
+        self.acc_layers = (
+            nn.ModuleList([GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)])
+            if self.use_acc
+            else None
         )
-        self.rec_layers = nn.ModuleList(
-            [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
+        self.rec_layers = (
+            nn.ModuleList([GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)])
+            if self.use_rec
+            else None
         )
-        self.acc_c_layers = nn.ModuleList(
-            [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
+        self.acc_c_layers = (
+            nn.ModuleList([GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)])
+            if self.use_acc_c
+            else None
         )
-        self.rec_c_layers = nn.ModuleList(
-            [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
+        self.rec_c_layers = (
+            nn.ModuleList([GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)])
+            if self.use_rec_c
+            else None
         )
 
-        self.gate = nn.GRU(self.hidden_dim * 5, self.hidden_dim)
+        num_streams = 1
+        if self.use_acc:
+            num_streams += 1
+        if self.use_rec:
+            num_streams += 1
+        if self.use_acc_c:
+            num_streams += 1
+        if self.use_rec_c:
+            num_streams += 1
+        self.gate = nn.GRU(self.hidden_dim * num_streams, self.hidden_dim)
         self.W_final = nn.Linear(self.hidden_dim, 1, bias=False)
 
     @property
@@ -451,53 +477,66 @@ class ContextPooling(KGModel):
                     return torch.zeros_like(full_emb)
                 return layer(q_sub, q_rel, hidden_curr, edges, nodes_full_curr.size(0), crop_dim=crop_dim)
 
-            hidden_list.append(
-                run_stream(
-                    self.acc_layers[i],
-                    q_rels_acc,
-                    self.accuracy_tensor,
-                    False,
-                    nodes,
-                    head_idx_map,
-                    tail_idx_map,
-                    hidden,
-                    h_full,
-                    nodes_full,
+            if self.use_acc:
+                hidden_list.append(
+                    run_stream(
+                        self.acc_layers[i],
+                        q_rels_acc,
+                        self.accuracy_tensor,
+                        False,
+                        nodes,
+                        head_idx_map,
+                        tail_idx_map,
+                        hidden,
+                        h_full,
+                        nodes_full,
+                    )
                 )
-            )
-            hidden_list.append(
-                run_stream(
-                    self.rec_layers[i], q_rels_rec, self.recall_tensor, False, nodes, head_idx_map, tail_idx_map, hidden, h_full, nodes_full
+            if self.use_rec:
+                hidden_list.append(
+                    run_stream(
+                        self.rec_layers[i],
+                        q_rels_rec,
+                        self.recall_tensor,
+                        False,
+                        nodes,
+                        head_idx_map,
+                        tail_idx_map,
+                        hidden,
+                        h_full,
+                        nodes_full,
+                    )
                 )
-            )
-            hidden_list.append(
-                run_stream(
-                    self.acc_c_layers[i],
-                    q_rels_acc_c,
-                    self.accuracy_tensor,
-                    True,
-                    nodes,
-                    head_idx_map,
-                    tail_idx_map,
-                    hidden,
-                    h_full,
-                    nodes_full,
+            if self.use_acc_c:
+                hidden_list.append(
+                    run_stream(
+                        self.acc_c_layers[i],
+                        q_rels_acc_c,
+                        self.accuracy_tensor,
+                        True,
+                        nodes,
+                        head_idx_map,
+                        tail_idx_map,
+                        hidden,
+                        h_full,
+                        nodes_full,
+                    )
                 )
-            )
-            hidden_list.append(
-                run_stream(
-                    self.rec_c_layers[i],
-                    q_rels_rec_c,
-                    self.recall_tensor,
-                    True,
-                    nodes,
-                    head_idx_map,
-                    tail_idx_map,
-                    hidden,
-                    h_full,
-                    nodes_full,
+            if self.use_rec_c:
+                hidden_list.append(
+                    run_stream(
+                        self.rec_c_layers[i],
+                        q_rels_rec_c,
+                        self.recall_tensor,
+                        True,
+                        nodes,
+                        head_idx_map,
+                        tail_idx_map,
+                        hidden,
+                        h_full,
+                        nodes_full,
+                    )
                 )
-            )
 
             hidden_combined = torch.cat(hidden_list, dim=1)
 
