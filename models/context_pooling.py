@@ -71,7 +71,7 @@ class ContextPoolingGraph:
         return starts[repeat_idx] + inner_offsets
 
     @staticmethod
-    def generate_cp_stats(triples, n_rel):
+    def generate_cp_stats(triples, n_rel, acc_thresh=0.4, rec_thresh=0.1):
         G = nx.DiGraph()
         relation2neighbors = defaultdict(lambda: defaultdict(int))
 
@@ -97,9 +97,6 @@ class ContextPoolingGraph:
         accuracy_neighbors = defaultdict(list)
         recall_neighbors = defaultdict(list)
         all_rels = sorted(list(neighbor_num.keys()))
-
-        acc_thresh = 0.4
-        rec_thresh = 0.1
 
         for r in all_rels:
             for r2 in all_rels:
@@ -210,10 +207,6 @@ class ContextPoolingGraph:
         if q_sub is not None and q_rel is not None:
             q_h = q_sub[batch_ids_rep]
             q_r = q_rel[batch_ids_rep]
-            # src_ids is NOT readily available here without lookups, but we know src_ids corresponds to node_ids[head_local_idx]
-            # We can use head_local_idx to filter directly
-            # Or safer: don't mask self-loops in CP (usually fine)
-            # Reconstruct src for masking
             src_ids_rep = node_ids[head_local_idx]
             q_mask = ~((src_ids_rep == q_h) & (rels == q_r))
             final_mask = final_mask & q_mask
@@ -317,6 +310,8 @@ class ContextPooling(KGModel):
         act="relu",
         train_triples=None,
         data_path=None,
+        accuracy_threshold=0.4,
+        recall_threshold=0.1,
         **kwargs,
     ):
         super().__init__(nentity, nrelation, base_dim, gamma, **kwargs)
@@ -330,9 +325,9 @@ class ContextPooling(KGModel):
         self.act = activations.get(act, nn.ReLU())
 
         if train_triples is not None:
-            self._init_graph(train_triples)
+            self._init_graph(train_triples, accuracy_threshold, recall_threshold)
         elif data_path is not None:
-            self._load_and_init_graph(data_path)
+            self._load_and_init_graph(data_path, accuracy_threshold, recall_threshold)
 
         self.gnn_layers = nn.ModuleList(
             [GNNLayer(self.hidden_dim, self.hidden_dim, self.attn_dim, nrelation, self.act) for _ in range(self.n_layer)]
@@ -357,20 +352,20 @@ class ContextPooling(KGModel):
     def device(self):
         return self.entity_embedding.device
 
-    def _load_and_init_graph(self, data_path):
+    def _load_and_init_graph(self, data_path, accuracy_threshold, recall_threshold):
         path = os.path.join(data_path, "train.txt")
         triples = []
         with open(path) as f:
             for line in f:
                 h, r, t = line.strip().split()
                 triples.append([int(h), int(r), int(t)])
-        self._init_graph(triples)
+        self._init_graph(triples, accuracy_threshold, recall_threshold)
 
-    def _init_graph(self, triples):
+    def _init_graph(self, triples, accuracy_threshold, recall_threshold):
         if isinstance(triples, torch.Tensor):
             triples = triples.cpu().numpy()
 
-        acc_t, rec_t = ContextPoolingGraph.generate_cp_stats(triples, self.nrelation)
+        acc_t, rec_t = ContextPoolingGraph.generate_cp_stats(triples, self.nrelation, accuracy_threshold, recall_threshold)
         self.register_buffer("accuracy_tensor", acc_t)
         self.register_buffer("recall_tensor", rec_t)
 
