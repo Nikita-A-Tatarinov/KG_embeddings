@@ -1,0 +1,52 @@
+seed: 42
+device: auto
+
+dataset:
+  name: FB15k-237
+  source: hf
+  hf_name: KGraph/FB15k-237
+  filtered_eval: true
+
+data:
+  neg_size: 1024
+  train_bs: 64  
+  test_bs: 64
+  num_workers: 4
+
+model:
+  name: cp 
+  base_dim: 256
+  gamma: 12.0
+  n_layer: 5
+  attn_dim: 5
+  dropout: 0.02
+  act: "relu"
+  accuracy_threshold: 0.89
+  recall_threshold: 0.53
+  accuracy_graph: false
+  recall_graph: true
+  accuracy_graph_complement: false
+  recall_graph_complement: true
+
+med:
+  enabled: false
+
+optim:
+  name: Adam
+  lr: 0.0003
+  weight_decay: 0.00014
+  grad_clip: 1.0
+
+sched:
+  name: exponential
+  gamma: 0.994
+  warmup_steps: 0
+  total_steps: 0
+
+train:
+  epochs: 50
+  log_every: 100
+  eval_every: 10000
+  save_every: 5000
+  out_dir: ./workdir/runs/fb15k237/cp/256d
+  save_best_metric: MRR

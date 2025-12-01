@@ -7,8 +7,9 @@ requires-python = ">=3.12"
 dependencies = [
     "datasets>=4.3.0",
     "matplotlib>=3.10.7",
+    "networkx>=3.5",
     "pyyaml>=6.0.3",
-    "torch>=2.9.0",
+    "torch==2.8.0",
 ]
 
 [dependency-groups]
@@ -59,6 +60,12 @@ ignore = [
     # raise error
     "B904",
 ]
+
+# -------------------------------
+# tool.uv - package manager config
+# -------------------------------
+[tool.uv.extra-build-dependencies]
+torch-scatter = ["torch"]
 
 # -------------------------------
 # tool.mypy - typechecking config

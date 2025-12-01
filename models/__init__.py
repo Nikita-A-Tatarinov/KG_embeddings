@@ -20,6 +20,7 @@ from .rotatev2 import RotatEv2 as RotatEv2
 # Import modules to trigger @register_model side-effects and optionally re-export classes
 from .transe import TransE as TransE
 from .transh import TransH as TransH
+from .context_pooling import ContextPooling as ContextPooling
 
 __all__ = [
     # registry API
@@ -35,4 +36,5 @@ __all__ = [
     "RotatEv2",
     "PairRE",
     "TransH",
+    "ContextPooling",
 ]
