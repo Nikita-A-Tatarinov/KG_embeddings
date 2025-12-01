@@ -47,9 +47,9 @@ def save_checkpoint(
     return path
 
 
-def load_checkpoint(path: str, model_obj, optimizer=None, scheduler=None):
+def load_checkpoint(path: str, model_obj, optimizer=None, scheduler=None, strict=True):
     data = torch.load(path, map_location="cpu")
-    model_obj.load_state_dict(data["model"], strict=True)
+    model_obj.load_state_dict(data["model"], strict=strict)
     if optimizer is not None and data.get("optimizer") is not None:
         optimizer.load_state_dict(data["optimizer"])
     if scheduler is not None and data.get("scheduler") is not None:

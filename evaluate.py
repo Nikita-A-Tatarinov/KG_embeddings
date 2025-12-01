@@ -16,7 +16,6 @@ from eval.kgc_eval import evaluate_model
 from models.registry import create_model
 from runner.checkpoint import load_checkpoint
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="Model name (as registered)")
