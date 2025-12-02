@@ -89,6 +89,9 @@ def main_with_stability():
         base_dim = model_config["base_dim"]
         gamma = model_config["gamma"]
         med_d_list = model_config.get("d_list", None) if model_config.get("med_enabled", False) else None
+        # CRITICAL: Use checkpoint's entity/relation counts, not dataset's!
+        ckpt_nentity = model_config["nentity"]
+        ckpt_nrelation = model_config["nrelation"]
     else:
         # Fallback: infer base_dim from checkpoint state_dict (old format)
         print("Warning: model_config not found in checkpoint (old format). Attempting to infer parameters...")
@@ -96,23 +99,34 @@ def main_with_stability():
             state = ckpt_data["model"]
             if "entity_embedding" in state:
                 emb_dim = state["entity_embedding"].shape[1]
+                ckpt_nentity = state["entity_embedding"].shape[0]
                 if args.model.lower() == "complex":
                     base_dim = emb_dim // 2
                 else:
                     base_dim = emb_dim
                 print(f"Inferred base_dim from checkpoint: {base_dim}")
+                print(f"Inferred nentity from checkpoint: {ckpt_nentity}")
             else:
                 print("Warning: Could not infer base_dim from checkpoint, using default=100")
                 base_dim = 100
+                ckpt_nentity = nentity
+            if "relation_embedding" in state:
+                ckpt_nrelation = state["relation_embedding"].shape[0]
+                print(f"Inferred nrelation from checkpoint: {ckpt_nrelation}")
+            else:
+                ckpt_nrelation = nrelation
         else:
             print("Warning: Could not read checkpoint model state, using default base_dim=100")
             base_dim = 100
+            ckpt_nentity = nentity
+            ckpt_nrelation = nrelation
         gamma = 12.0
         med_d_list = None
 
-    # Create base model with correct sizes
+    # Create base model with checkpoint's entity/relation sizes (not dataset's!)
     print(f"\nCreating model: {args.model}")
-    model = create_model(args.model, nentity=nentity, nrelation=nrelation, base_dim=base_dim, gamma=gamma)
+    print(f"  Using checkpoint sizes: {ckpt_nentity} entities, {ckpt_nrelation} relations")
+    model = create_model(args.model, nentity=ckpt_nentity, nrelation=ckpt_nrelation, base_dim=base_dim, gamma=gamma)
     
     # Check if checkpoint has MI wrapper parameters
     state_dict = ckpt_data.get("model", {})
