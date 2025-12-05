@@ -617,6 +617,11 @@ def compute_stability_metrics(
             # Extract subgraph
             subgraph = extractor.extract(h, r, t)
             
+            # Log subgraph size for diagnostics
+            num_entities = len(subgraph.entities)
+            num_edges = len(subgraph.edges)
+            print(f"  Sample {sample_count+1}: Subgraph with {num_entities} entities, {num_edges} edges")
+            
             # Get model score (single mode)
             single_sample = pos_samples[i:i+1]
             score = model(single_sample, mode='single')
@@ -648,11 +653,16 @@ def compute_stability_metrics(
     # Sample pairs (limit to avoid O(n²) computation)
     num_pairs_to_sample = min(len(subgraphs) * (len(subgraphs) - 1) // 2, 5000)
     
+    print(f"Will compute RTMD for {num_pairs_to_sample} subgraph pairs...")
+    
     # Generate random pairs
     indices = list(range(len(subgraphs)))
     pair_count = 0
     
-    for _ in range(num_pairs_to_sample):
+    import time
+    start_time = time.time()
+    
+    for pair_idx in range(num_pairs_to_sample):
         i, j = random.sample(indices, 2)
         
         # Compute RTMD
@@ -674,9 +684,20 @@ def compute_stability_metrics(
         
         pair_count += 1
         
-        # Progress indicator
-        if (pair_count) % 500 == 0:
-            print(f"  Processed {pair_count}/{num_pairs_to_sample} pairs...")
+        # More frequent progress indicator (every 10 pairs for small datasets, every 100 for large)
+        if num_pairs_to_sample < 500:
+            report_freq = 10
+        elif num_pairs_to_sample < 2000:
+            report_freq = 50
+        else:
+            report_freq = 100
+        
+        if (pair_idx + 1) % report_freq == 0:
+            elapsed = time.time() - start_time
+            pairs_per_sec = (pair_idx + 1) / elapsed
+            eta_seconds = (num_pairs_to_sample - pair_idx - 1) / pairs_per_sec if pairs_per_sec > 0 else 0
+            eta_minutes = eta_seconds / 60
+            print(f"  [{pair_idx+1}/{num_pairs_to_sample}] pairs | {pairs_per_sec:.2f} pairs/s | ETA: {eta_minutes:.1f} min")
     
     # Step 3: Compute stability metric
     # Per Section 6.3: η̂_f = max |f(S1) - f(S2)| / RTMD(S1, S2)
